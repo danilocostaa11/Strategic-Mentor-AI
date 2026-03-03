@@ -4,34 +4,49 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = env("SQLITE_URL")
 }
 
 model Client {
   id                String   @id @default(cuid())
   name              String
   company           String?
-  segment           String?  // Pharma | Imob | IA
-  profileManual     String?  // Analítico | Integrador | Expressivo | Pragmático
+  segment           String?
+  profileManual     String?
   profileAI         String?
   profileConfidence Float?
+  profileConfirmed  Boolean  @default(false)
+  tags              String?
   notes             String?
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   meetings          Meeting[]
 }
 
 model Meeting {
-  id             String   @id @default(cuid())
-  clientId       String?
-  title          String
-  segment        String?
-  rawTranscript  String
-  analysisJson   String?
-  strategicScore Float?
-  closingScore   Float?
-  promptVersion  String?
-  promptHash     String?
-  createdAt      DateTime @default(now())
+  id                String   @id @default(cuid())
+  clientId          String?
+  title             String
+  segment           String?
+  rawTranscript     String
+  analysisJson      String?
+  analysisVersion   String?
+  status            String   @default("PENDING")
+  strategicScore    Float?
+  closingScore      Float?
+  userFeedback      String?
+  includedInPattern Boolean  @default(false)
+  promptVersion     String?
+  promptHash        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  client         Client?  @relation(fields: [clientId], references: [id])
+  client            Client?  @relation(fields: [clientId], references: [id])
+}
+
+model PatternReport {
+  id         String   @id @default(cuid())
+  meetingIds String
+  reportJson String
+  createdAt  DateTime @default(now())
 }

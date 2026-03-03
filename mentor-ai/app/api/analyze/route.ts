@@ -30,22 +30,55 @@ export async function POST(req: Request) {
     }
   }
 
-  const analysis = await analyzeMeeting({ transcript, segment, clientContext });
-
-  const strategicScore = Number(analysis?.scores?.strategic ?? null);
-  const closingScore = Number(analysis?.scores?.closing ?? null);
-
   const meeting = await prisma.meeting.create({
     data: {
       clientId,
       title,
       segment,
       rawTranscript: transcript,
-      analysisJson: JSON.stringify(analysis),
-      strategicScore: Number.isFinite(strategicScore) ? strategicScore : null,
-      closingScore: Number.isFinite(closingScore) ? closingScore : null,
+      status: "ANALYZING",
     },
   });
 
-  return NextResponse.json({ meetingId: meeting.id, analysis });
+  try {
+    const result = await analyzeMeeting({ transcript, segment, clientContext });
+
+    const strategicScore = Number(result.analysis?.scores?.strategic ?? null);
+    const closingScore = Number(result.analysis?.scores?.closing ?? null);
+
+    const updated = await prisma.meeting.update({
+      where: { id: meeting.id },
+      data: {
+        analysisJson: JSON.stringify(result.analysis),
+        analysisVersion: result.promptVersion,
+        promptVersion: result.promptVersion,
+        promptHash: result.promptHash,
+        strategicScore: Number.isFinite(strategicScore) ? strategicScore : null,
+        closingScore: Number.isFinite(closingScore) ? closingScore : null,
+        status: "DONE",
+      },
+    });
+
+    return NextResponse.json({
+      meetingId: updated.id,
+      analysis: result.analysis,
+      promptVersion: result.promptVersion,
+      fromCache: result.fromCache,
+    });
+  } catch (error: any) {
+    await prisma.meeting.update({
+      where: { id: meeting.id },
+      data: { status: "ERROR" },
+    });
+
+    const message =
+      error?.status === 429
+        ? "Análise temporariamente indisponível. Sua transcrição foi salva."
+        : "Falha ao processar análise. Sua transcrição foi salva.";
+
+    return NextResponse.json(
+      { error: message, meetingId: meeting.id },
+      { status: 500 }
+    );
+  }
 }

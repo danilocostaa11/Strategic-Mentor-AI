@@ -20,3 +20,8 @@ expertMode = true
 [[ports]]
 localPort = 3000
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+SQLITE_URL = "file:./prisma/dev.db"

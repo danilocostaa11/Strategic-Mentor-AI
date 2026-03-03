@@ -1,25 +1,60 @@
+import { createHash } from "crypto";
+
+export const PROMPT_VERSION = "v1.1-2026-03";
+
+let _promptHashCache: string | null = null;
+
+export function getPromptHash(promptContent: string): string {
+  return createHash("md5").update(promptContent).digest("hex").slice(0, 12);
+}
+
+export function getBasePromptHash(): string {
+  if (_promptHashCache) return _promptHashCache;
+  const template = INDIVIDUAL_TEMPLATE_SIGNATURE;
+  _promptHashCache = getPromptHash(template);
+  return _promptHashCache;
+}
+
+const INDIVIDUAL_TEMPLATE_SIGNATURE = "strategic-mentor-individual-v1.1";
+
+const SCORING_RUBRIC = `
+=== RUBRICA DE SCORES (use como referência obrigatória) ===
+
+Strategic Score (0–10):
+- 0–3: Reunião sem estrutura, sem diagnóstico
+- 4–5: Estrutura parcial, diagnóstico superficial
+- 6–7: Boa condução, pontos de melhoria claros
+- 8–9: Reunião estratégica, adaptação ao perfil
+- 10: Referência: todos os blocos executados com excelência
+
+Closing Score (0–10):
+- 0–3: Sem tentativa de fechamento
+- 4–5: Fechamento fraco, sem comprometimento
+- 6–7: Fechamento presente, timing questionável
+- 8–9: Fechamento técnico, adequado ao perfil
+- 10: Compromisso claro + próximos passos + data
+`;
+
 export function buildIndividualPrompt(args: {
-  negotiationPlaybook: string;
-  communicationPlaybook: string;
+  context: string;
   transcript: string;
   segment?: string | null;
   clientContext?: string | null;
 }) {
-  const { negotiationPlaybook, communicationPlaybook, transcript, segment, clientContext } = args;
+  const { context, transcript, segment, clientContext } = args;
 
   return `
 Você é um Mentor Estratégico de Performance Comercial (equilibrado: método + psicologia).
 Você deve seguir os PLAYBOOKS abaixo como referência principal (a "lei da casa").
 
-=== PLAYBOOK: NEGOCIAÇÃO ===
-${negotiationPlaybook}
+=== PLAYBOOKS E CONTEXTO DE SEGMENTO ===
+${context}
 
-=== PLAYBOOK: COMUNICAÇÃO & ESCUTA ATIVA ===
-${communicationPlaybook}
-
-=== CONTEXTO (se houver) ===
+=== CONTEXTO DO CLIENTE (se houver) ===
 Segmento: ${segment ?? "N/A"}
 Cliente (contexto cadastrado): ${clientContext ?? "N/A"}
+
+${SCORING_RUBRIC}
 
 === TAREFA ===
 Analise a transcrição bruta. Ela pode estar desorganizada e misturar quebra-gelo e assunto técnico.
@@ -50,6 +85,7 @@ Regras:
    - qualidade de abertura (primeiros 5s)
    - fechamento (CTA + próximo passo claro)
 5) Gere recomendações práticas para o próximo encontro (consultivo e orientado a fechamento).
+6) Atribua os scores seguindo RIGOROSAMENTE a rubrica acima.
 
 === FORMATO DE SAÍDA (OBRIGATÓRIO) ===
 Responda SOMENTE com JSON válido exatamente neste schema:
@@ -88,6 +124,7 @@ Responda SOMENTE com JSON válido exatamente neste schema:
   },
   "meta": {
     "segment": "${segment ?? ""}",
+    "promptVersion": "${PROMPT_VERSION}",
     "notes": "se houver ambiguidade, descreva aqui sem inventar"
   }
 }
@@ -98,22 +135,18 @@ ${transcript}
 }
 
 export function buildPatternsPrompt(args: {
-  negotiationPlaybook: string;
-  communicationPlaybook: string;
+  context: string;
   analysesJsonArray: string;
   segment?: string | null;
 }) {
-  const { negotiationPlaybook, communicationPlaybook, analysesJsonArray, segment } = args;
+  const { context, analysesJsonArray, segment } = args;
 
   return `
 Você é um Mentor Estratégico de Performance Comercial.
 Use os PLAYBOOKS como referência. Analise padrões recorrentes do CONSULTOR ao longo de várias reuniões.
 
-=== PLAYBOOK: NEGOCIAÇÃO ===
-${negotiationPlaybook}
-
-=== PLAYBOOK: COMUNICAÇÃO & ESCUTA ATIVA ===
-${communicationPlaybook}
+=== PLAYBOOKS E CONTEXTO ===
+${context}
 
 Segmento: ${segment ?? "N/A"}
 
@@ -139,7 +172,9 @@ Entrada: uma lista de análises anteriores (JSON). Não invente nada além do qu
     "weeklyDrills": ["2-6 exercícios semanais"],
     "checklistBeforeMeeting": ["5-10 itens"],
     "checklistAfterMeeting": ["5-10 itens"]
-  }
+  },
+  "alertTriggered": false,
+  "alertMessage": ""
 }
 
 === ANALYSES_JSON_ARRAY ===
