@@ -16,12 +16,41 @@ ignorePorts = false
 
 [agent]
 expertMode = true
+integrations = ["javascript_openai_ai_integrations:2.0.0"]
 
 [[ports]]
 localPort = 3000
 externalPort = 80
 
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
 [userenv]
 
 [userenv.shared]
 SQLITE_URL = "file:./prisma/dev.db"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd mentor-ai && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"

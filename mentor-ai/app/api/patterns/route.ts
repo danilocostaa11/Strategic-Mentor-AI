@@ -13,13 +13,35 @@ export async function POST(req: Request) {
 
   const meetings = await prisma.meeting.findMany({
     where: { id: { in: meetingIds } },
-    select: { analysisJson: true },
+    select: { id: true, analysisJson: true },
   });
 
   const analyses = meetings
     .map(m => (m.analysisJson ? JSON.parse(m.analysisJson) : null))
     .filter(Boolean);
 
-  const report = await analyzePatterns({ analyses, segment });
-  return NextResponse.json(report);
+  try {
+    const report = await analyzePatterns({ analyses, segment });
+
+    await prisma.patternReport.create({
+      data: {
+        meetingIds: JSON.stringify(meetingIds),
+        reportJson: JSON.stringify(report),
+      },
+    });
+
+    await prisma.meeting.updateMany({
+      where: { id: { in: meetingIds } },
+      data: { includedInPattern: true },
+    });
+
+    return NextResponse.json(report);
+  } catch (error: any) {
+    const message =
+      error?.status === 429
+        ? "Análise temporariamente indisponível. Tente novamente em alguns segundos."
+        : "Falha ao processar análise de padrões.";
+
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
