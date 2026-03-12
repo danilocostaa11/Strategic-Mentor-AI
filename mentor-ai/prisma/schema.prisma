@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("SQLITE_URL")
+  url      = env("DATABASE_URL")
 }
 
 model Client {
@@ -34,6 +34,8 @@ model Meeting {
   status            String   @default("PENDING")
   strategicScore    Float?
   closingScore      Float?
+  listeningScore    Float?
+  dealOutcome       String?  // GANHOU | PERDEU | EM_ANDAMENTO
   userFeedback      String?
   includedInPattern Boolean  @default(false)
   promptVersion     String?

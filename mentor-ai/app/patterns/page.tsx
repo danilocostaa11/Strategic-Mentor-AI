@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PatternsResult from "@/components/PatternsResult";
 
-type Meeting = { id: string; title: string; createdAt: string };
+type Meeting = { id: string; title: string; createdAt: string; client?: { name: string } | null };
 
 export default function PatternsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -10,14 +11,20 @@ export default function PatternsPage() {
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+
   useEffect(() => {
     fetch("/api/meetings")
       .then(r => r.json())
-      .then((data) => setMeetings(data.map((m: any) => ({ id: m.id, title: m.title, createdAt: m.createdAt }))));
+      .then((data) => setMeetings(data.filter((m: any) => m.status === "DONE")));
   }, []);
 
   async function run() {
     const ids = Object.entries(selected).filter(([, v]) => v).map(([k]) => k);
+    if (ids.length < 3) {
+      alert("Selecione pelo menos 3 reuniões.");
+      return;
+    }
     setLoading(true);
     setReport(null);
     try {
@@ -37,32 +44,59 @@ export default function PatternsPage() {
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700 }}>Análise de padrões</h2>
-      <p style={{ opacity: 0.8 }}>Selecione pelo menos 3 reuniões.</p>
-
-      <div style={{ marginTop: 12 }}>
-        {meetings.map(m => (
-          <label key={m.id} style={{ display: "block", padding: 8, borderBottom: "1px solid #eee" }}>
-            <input
-              type="checkbox"
-              checked={!!selected[m.id]}
-              onChange={(e) => setSelected(s => ({ ...s, [m.id]: e.target.checked }))}
-            />{" "}
-            <b>{m.title}</b> <span style={{ opacity: 0.7, fontSize: 12 }}>{new Date(m.createdAt).toLocaleString()}</span>
-          </label>
-        ))}
+    <main className="max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold gradient-text">Análise de Padrões</h2>
+        <p className="text-white/50 mt-1">Selecione pelo menos 3 reuniões para identificar padrões recorrentes.</p>
       </div>
 
-      <button onClick={run} disabled={loading} style={{ marginTop: 12, padding: 10 }}>
-        {loading ? "Gerando..." : "Gerar padrões"}
+      <div className="glass-card rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-white/5">
+          <span className="text-sm text-white/40">{selectedCount} reunião(ões) selecionada(s)</span>
+        </div>
+        <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
+          {meetings.map(m => (
+            <label key={m.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!selected[m.id]}
+                onChange={(e) => setSelected(s => ({ ...s, [m.id]: e.target.checked }))}
+                className="rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/50"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-white/90">{m.title}</span>
+                {m.client?.name && (
+                  <span className="text-white/40 ml-2">— {m.client.name}</span>
+                )}
+              </div>
+              <span className="text-xs text-white/30 shrink-0">
+                {new Date(m.createdAt).toLocaleDateString("pt-BR")}
+              </span>
+            </label>
+          ))}
+          {meetings.length === 0 && (
+            <div className="p-8 text-center text-white/40">
+              Nenhuma reunião analisada encontrada.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button
+        onClick={run}
+        disabled={loading || selectedCount < 3}
+        className="mt-4 w-full py-3 rounded-xl font-semibold transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white shadow-lg shadow-purple-500/20"
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="animate-spin">⏳</span> Gerando padrões...
+          </span>
+        ) : (
+          `Gerar Padrões (${selectedCount} selecionadas)`
+        )}
       </button>
 
-      {report && (
-        <pre style={{ marginTop: 14, whiteSpace: "pre-wrap", background: "#111", color: "#fff", padding: 12, borderRadius: 8 }}>
-          {JSON.stringify(report, null, 2)}
-        </pre>
-      )}
+      {report && <PatternsResult report={report} />}
     </main>
   );
 }

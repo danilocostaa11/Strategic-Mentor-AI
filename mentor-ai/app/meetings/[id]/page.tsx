@@ -1,27 +1,39 @@
 import { prisma } from "@/lib/prisma";
+import AnalysisResultClient from "./AnalysisResultClient";
+
+export const dynamic = "force-dynamic";
 
 export default async function MeetingPage({ params }: { params: { id: string } }) {
+  const { id } = await params;
   const meeting = await prisma.meeting.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { client: true },
   });
 
-  if (!meeting) return <main style={{ padding: 24 }}>Não encontrado.</main>;
+  if (!meeting) return <main className="p-6">Não encontrado.</main>;
 
   const analysis = meeting.analysisJson ? JSON.parse(meeting.analysisJson) : null;
 
   return (
-    <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700 }}>{meeting.title}</h2>
-      <p style={{ opacity: 0.75 }}>
-        {meeting.client?.name ? `Cliente: ${meeting.client.name} • ` : ""}
-        Segmento: {meeting.segment ?? "N/A"}
-      </p>
+    <main className="max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold gradient-text">{meeting.title}</h2>
+        <p className="text-white/50 mt-1">
+          {meeting.client?.name ? `Cliente: ${meeting.client.name} • ` : ""}
+          Segmento: {meeting.segment ?? "N/A"} •{" "}
+          {new Date(meeting.createdAt).toLocaleDateString("pt-BR", {
+            day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+          })}
+        </p>
+      </div>
 
-      <h3 style={{ marginTop: 14, fontWeight: 700 }}>Análise</h3>
-      <pre style={{ whiteSpace: "pre-wrap", background: "#111", color: "#fff", padding: 12, borderRadius: 8 }}>
-        {analysis ? JSON.stringify(analysis, null, 2) : "Sem análise salva."}
-      </pre>
+      {analysis ? (
+        <AnalysisResultClient analysis={analysis} meetingId={meeting.id} clientName={meeting.client?.name} />
+      ) : (
+        <div className="glass-card rounded-xl p-8 text-center text-white/40">
+          Sem análise salva para esta reunião.
+        </div>
+      )}
     </main>
   );
 }

@@ -15,10 +15,12 @@ export async function POST(req: Request) {
   }
 
   let clientContext: string | null = null;
+  let clientName: string | null = null;
 
   if (clientId) {
     const client = await prisma.client.findUnique({ where: { id: clientId } });
     if (client) {
+      clientName = client.name;
       clientContext = [
         `Nome: ${client.name}`,
         client.company ? `Empresa: ${client.company}` : "",
@@ -45,6 +47,7 @@ export async function POST(req: Request) {
 
     const strategicScore = Number(result.analysis?.scores?.strategic ?? null);
     const closingScore = Number(result.analysis?.scores?.closing ?? null);
+    const listeningScore = Number(result.analysis?.scores?.listening ?? null);
 
     const updated = await prisma.meeting.update({
       where: { id: meeting.id },
@@ -55,12 +58,14 @@ export async function POST(req: Request) {
         promptHash: result.promptHash,
         strategicScore: Number.isFinite(strategicScore) ? strategicScore : null,
         closingScore: Number.isFinite(closingScore) ? closingScore : null,
+        listeningScore: Number.isFinite(listeningScore) ? listeningScore : null,
         status: "DONE",
       },
     });
 
     return NextResponse.json({
       meetingId: updated.id,
+      clientName,
       analysis: result.analysis,
       promptVersion: result.promptVersion,
       fromCache: result.fromCache,

@@ -84,10 +84,21 @@ export async function analyzeMeeting(args: {
 
 async function callOpenAI(prompt: string): Promise<any> {
   const resp = await openai.chat.completions.create({
-    model: "gpt-4o",
-    temperature: 0.2,
+    model: "gpt-4o-2024-11-20", // Modelo GPT-4o mais recente (Nov 2024)
+    temperature: 0.1,
+    max_tokens: 4000,
     messages: [
-      { role: "system", content: "Você responde somente em JSON válido." },
+      {
+        role: "system",
+        content: `Você é um analista preciso de reuniões comerciais. Responda SOMENTE em JSON válido.
+
+REGRAS INVIOLÁVEIS:
+- NUNCA invente informações que não estão na transcrição.
+- Todas as citações devem ser trechos EXATOS da transcrição original.
+- Se não há evidência suficiente, diga "Insuficiente na transcrição" — NUNCA preencha com conteúdo genérico.
+- Pontos fortes, melhorias e oportunidades devem ser ESPECÍFICOS e rastreáveis à transcrição.
+- Scores devem refletir EVIDÊNCIAS REAIS. Sem evidência = score baixo.`
+      },
       { role: "user", content: prompt },
     ],
   });
@@ -109,7 +120,19 @@ export async function analyzePatterns(args: {
   });
 
   try {
-    return await callOpenAI(prompt);
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-2024-11-20",
+      temperature: 0.1,
+      max_tokens: 4000,
+      messages: [
+        {
+          role: "system",
+          content: "Você é um analista de padrões de performance comercial. Responda SOMENTE em JSON válido."
+        },
+        { role: "user", content: prompt }
+      ]
+    });
+    return JSON.parse(resp.choices[0]?.message?.content ?? "{}");
   } catch (error: any) {
     if (isRateLimitError(error)) {
       await sleep(2000);
