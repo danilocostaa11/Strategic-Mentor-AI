@@ -48,10 +48,17 @@ export function Sidebar() {
       </div>
 
       <div className="p-4 border-t border-white/5">
-        <button className="flex items-center gap-3 px-3 py-3 w-full rounded-xl text-white/60 hover:bg-white/5 hover:text-white transition-all duration-200 group">
+        <Link
+          href="/settings"
+          className={`flex items-center gap-3 px-3 py-3 w-full rounded-xl transition-all duration-200 group ${
+            pathname === "/settings"
+              ? "bg-purple-500/10 text-purple-400 font-medium"
+              : "text-white/60 hover:bg-white/5 hover:text-white"
+          }`}
+        >
           <Settings className="w-5 h-5 transition-transform group-hover:rotate-90" />
           <span className="font-medium">Configurações</span>
-        </button>
+        </Link>
       </div>
     </aside>
   );
