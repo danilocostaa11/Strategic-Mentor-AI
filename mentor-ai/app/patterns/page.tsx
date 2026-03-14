@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import PatternsResult from "@/components/PatternsResult";
+import { showToast } from "@/components/Toast";
 
 type Meeting = { id: string; title: string; createdAt: string; client?: { name: string } | null };
 
 export default function PatternsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -15,14 +18,16 @@ export default function PatternsPage() {
 
   useEffect(() => {
     fetch("/api/meetings")
-      .then(r => r.json())
-      .then((data) => setMeetings(data.filter((m: any) => m.status === "DONE")));
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((data) => setMeetings(data.filter((m: any) => m.status === "DONE")))
+      .catch(() => showToast("Erro ao carregar reuniões.", "error"))
+      .finally(() => setLoadingList(false));
   }, []);
 
   async function run() {
     const ids = Object.entries(selected).filter(([, v]) => v).map(([k]) => k);
     if (ids.length < 3) {
-      alert("Selecione pelo menos 3 reuniões.");
+      showToast("Selecione pelo menos 3 reuniões.", "error");
       return;
     }
     setLoading(true);
@@ -36,10 +41,22 @@ export default function PatternsPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error ?? "Erro ao gerar padrões.");
       setReport(data);
+      showToast("Relatório de padrões gerado!", "success");
     } catch (e: any) {
-      alert(e.message ?? "Erro");
+      showToast(e.message ?? "Erro ao gerar padrões.", "error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function toggleSelectAll() {
+    const allSelected = meetings.length > 0 && meetings.every(m => selected[m.id]);
+    if (allSelected) {
+      setSelected({});
+    } else {
+      const all: Record<string, boolean> = {};
+      meetings.forEach(m => { all[m.id] = true; });
+      setSelected(all);
     }
   }
 
@@ -51,33 +68,46 @@ export default function PatternsPage() {
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-white/5">
+        <div className="p-4 border-b border-white/5 flex items-center justify-between">
           <span className="text-sm text-white/40">{selectedCount} reunião(ões) selecionada(s)</span>
+          {meetings.length > 0 && (
+            <button
+              onClick={toggleSelectAll}
+              className="text-xs text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+            >
+              {meetings.every(m => selected[m.id]) ? "Desmarcar todas" : "Selecionar todas"}
+            </button>
+          )}
         </div>
         <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
-          {meetings.map(m => (
-            <label key={m.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!selected[m.id]}
-                onChange={(e) => setSelected(s => ({ ...s, [m.id]: e.target.checked }))}
-                className="rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/50"
-              />
-              <div className="flex-1 min-w-0">
-                <span className="font-medium text-white/90">{m.title}</span>
-                {m.client?.name && (
-                  <span className="text-white/40 ml-2">— {m.client.name}</span>
-                )}
-              </div>
-              <span className="text-xs text-white/30 shrink-0">
-                {new Date(m.createdAt).toLocaleDateString("pt-BR")}
-              </span>
-            </label>
-          ))}
-          {meetings.length === 0 && (
+          {loadingList ? (
+            <div className="p-8 flex items-center justify-center text-white/40">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Carregando reuniões...
+            </div>
+          ) : meetings.length === 0 ? (
             <div className="p-8 text-center text-white/40">
               Nenhuma reunião analisada encontrada.
             </div>
+          ) : (
+            meetings.map(m => (
+              <label key={m.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!selected[m.id]}
+                  onChange={(e) => setSelected(s => ({ ...s, [m.id]: e.target.checked }))}
+                  className="rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/50"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-white/90">{m.title}</span>
+                  {m.client?.name && (
+                    <span className="text-white/40 ml-2">— {m.client.name}</span>
+                  )}
+                </div>
+                <span className="text-xs text-white/30 shrink-0">
+                  {new Date(m.createdAt).toLocaleDateString("pt-BR")}
+                </span>
+              </label>
+            ))
           )}
         </div>
       </div>
@@ -89,7 +119,7 @@ export default function PatternsPage() {
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span className="animate-spin">⏳</span> Gerando padrões...
+            <Loader2 className="w-4 h-4 animate-spin" /> Gerando padrões...
           </span>
         ) : (
           `Gerar Padrões (${selectedCount} selecionadas)`

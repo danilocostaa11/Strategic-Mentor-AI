@@ -1,21 +1,16 @@
-const CACHE_NAME = 'mentor-ai-v1';
+const CACHE_NAME = 'mentor-ai-v2';
 
-const STATIC_ASSETS = [
-    '/',
-    '/meetings/new',
-    '/dashboard',
-    '/clients',
-    '/patterns',
+const PRECACHE_ASSETS = [
     '/manifest.json',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
 ];
 
-// Install: cache static assets
+// Install: cache only true static assets
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS);
+            return cache.addAll(PRECACHE_ASSETS);
         })
     );
     self.skipWaiting();
@@ -33,7 +28,7 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch: Network-first for API, Cache-first for assets
+// Fetch strategy
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
@@ -50,7 +45,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Static assets: cache first, then network
+    // Page navigations: network-first (pages have dynamic data)
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+                    return response;
+                })
+                .catch(() => {
+                    return caches.match(event.request).then((cached) => {
+                        return cached || caches.match('/') || new Response('Offline', { status: 503 });
+                    });
+                })
+        );
+        return;
+    }
+
+    // Static assets (JS, CSS, images, fonts): cache-first
     event.respondWith(
         caches.match(event.request).then((cached) => {
             if (cached) return cached;
@@ -61,10 +74,6 @@ self.addEventListener('fetch', (event) => {
                 }
                 return response;
             }).catch(() => {
-                // Fallback for navigation
-                if (event.request.mode === 'navigate') {
-                    return caches.match('/');
-                }
                 return new Response('Offline', { status: 503 });
             });
         })

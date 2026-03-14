@@ -32,8 +32,13 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
 
   async function refresh() {
-    const r = await fetch("/api/clients");
-    setClients(await r.json());
+    try {
+      const r = await fetch("/api/clients");
+      if (!r.ok) throw new Error();
+      setClients(await r.json());
+    } catch {
+      showToast("Erro ao carregar clientes.", "error");
+    }
   }
 
   useEffect(() => { refresh(); }, []);

@@ -1,36 +1,51 @@
 import Link from "next/link";
-import { Users, Video, TrendingUp, Plus, ArrowRight, BrainCircuit, Target } from "lucide-react";
+import { Users, Video, Plus, ArrowRight, BrainCircuit, Target } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  // Real data
-  const [clientCount, meetingCount, recentMeetings, avgStrategic, avgClosing] = await Promise.all([
-    prisma.client.count(),
-    prisma.meeting.count(),
-    prisma.meeting.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { client: true },
-    }),
-    prisma.meeting.aggregate({ _avg: { strategicScore: true } }),
-    prisma.meeting.aggregate({ _avg: { closingScore: true } }),
-  ]);
+  let clientCount = 0;
+  let meetingCount = 0;
+  let recentMeetings: any[] = [];
+  let avgStrat = "—";
+  let avgClose = "—";
 
-  const avgStrat = avgStrategic._avg.strategicScore?.toFixed(1) ?? "—";
-  const avgClose = avgClosing._avg.closingScore?.toFixed(1) ?? "—";
+  try {
+    const [clients, meetings, recent, avgStrategic, avgClosing] = await Promise.all([
+      prisma.client.count(),
+      prisma.meeting.count(),
+      prisma.meeting.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { client: true },
+      }),
+      prisma.meeting.aggregate({ _avg: { strategicScore: true } }),
+      prisma.meeting.aggregate({ _avg: { closingScore: true } }),
+    ]);
+
+    clientCount = clients;
+    meetingCount = meetings;
+    recentMeetings = recent;
+    avgStrat = avgStrategic._avg.strategicScore?.toFixed(1) ?? "—";
+    avgClose = avgClosing._avg.closingScore?.toFixed(1) ?? "—";
+  } catch (e) {
+    console.error("Dashboard: failed to load data", e);
+  }
+
+  const avgStratNum = parseFloat(avgStrat);
+  const avgCloseNum = parseFloat(avgClose);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Dashboard 👋</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Dashboard</h1>
           <p className="text-white/60">Resumo da sua operação de mentoria.</p>
         </div>
-        <Link href="/meetings/new" className="hidden sm:flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]">
+        <Link href="/meetings/new" className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]">
           <Plus className="w-5 h-5" />
-          Nova Análise
+          <span className="hidden sm:inline">Nova Análise</span>
         </Link>
       </div>
 
@@ -144,7 +159,7 @@ export default async function Home() {
               <span className="text-lg font-bold text-purple-400">{avgStrat}/10</span>
             </div>
             <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full" style={{ width: `${(Number(avgStrat) || 0) * 10}%` }} />
+              <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full" style={{ width: `${(isNaN(avgStratNum) ? 0 : avgStratNum) * 10}%` }} />
             </div>
 
             <div className="flex items-center justify-between">
@@ -152,7 +167,7 @@ export default async function Home() {
               <span className="text-lg font-bold text-blue-400">{avgClose}/10</span>
             </div>
             <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full" style={{ width: `${(Number(avgClose) || 0) * 10}%` }} />
+              <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full" style={{ width: `${(isNaN(avgCloseNum) ? 0 : avgCloseNum) * 10}%` }} />
             </div>
 
             <div className="pt-2 border-t border-white/5">

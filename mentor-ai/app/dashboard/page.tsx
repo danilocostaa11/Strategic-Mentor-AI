@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Trash2, ExternalLink, Search, Filter, X } from "lucide-react";
+import { Trash2, ExternalLink, Search, Filter, X, Loader2 } from "lucide-react";
+import { showToast } from "@/components/Toast";
 
 type Meeting = {
   id: string;
@@ -64,6 +65,7 @@ function OutcomeBadge({ outcome }: { outcome?: string | null }) {
 
 export default function DashboardPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -76,7 +78,11 @@ export default function DashboardPage() {
   const [filterScoreMax, setFilterScoreMax] = useState("");
 
   useEffect(() => {
-    fetch("/api/meetings").then(r => r.json()).then(setMeetings);
+    fetch("/api/meetings")
+      .then(r => { if (!r.ok) throw new Error("Falha ao carregar"); return r.json(); })
+      .then(setMeetings)
+      .catch(() => showToast("Erro ao carregar reuniões.", "error"))
+      .finally(() => setLoading(false));
   }, []);
 
   // Extract unique values for dropdowns
@@ -114,7 +120,7 @@ export default function DashboardPage() {
       if (!r.ok) throw new Error("Erro ao excluir.");
       setMeetings(prev => prev.filter(m => m.id !== id));
     } catch (e: any) {
-      alert(e.message ?? "Erro ao excluir reunião.");
+      showToast(e.message ?? "Erro ao excluir reunião.", "error");
     } finally {
       setDeleting(null);
     }
@@ -240,7 +246,11 @@ export default function DashboardPage() {
       )}
 
       <div className="glass-card rounded-xl overflow-hidden">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="p-12 flex items-center justify-center text-white/40">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Carregando reuniões...
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="p-12 text-center text-white/40">
             {search || hasActiveFilters ? "Nenhuma reunião encontrada com esses filtros." : "Nenhuma reunião registrada ainda."}
           </div>
@@ -281,7 +291,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <Link
                       href={`/meetings/${m.id}`}
                       className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-all"

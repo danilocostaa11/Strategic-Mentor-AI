@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { analyzeMeeting } from "@/lib/analyzer";
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Corpo da requisição inválido." }, { status: 400 });
+  }
 
   const transcript: string = body.transcript ?? "";
   const clientId: string | null = body.clientId ?? null;
@@ -45,9 +50,12 @@ export async function POST(req: Request) {
   try {
     const result = await analyzeMeeting({ transcript, segment, clientContext });
 
-    const strategicScore = Number(result.analysis?.scores?.strategic ?? null);
-    const closingScore = Number(result.analysis?.scores?.closing ?? null);
-    const listeningScore = Number(result.analysis?.scores?.listening ?? null);
+    const rawStrategic = result.analysis?.scores?.strategic;
+    const rawClosing = result.analysis?.scores?.closing;
+    const rawListening = result.analysis?.scores?.listening;
+    const strategicScore = rawStrategic != null ? Number(rawStrategic) : NaN;
+    const closingScore = rawClosing != null ? Number(rawClosing) : NaN;
+    const listeningScore = rawListening != null ? Number(rawListening) : NaN;
 
     const updated = await prisma.meeting.update({
       where: { id: meeting.id },
