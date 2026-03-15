@@ -2,8 +2,13 @@
   "name": "Strategic Mentor AI",
   "short_name": "MentorAI",
   "description": "Diagnóstico estratégico e análise comportamental com IA",
-  "start_url": "/",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "lang": "pt-BR",
+  "dir": "ltr",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait-primary",
   "background_color": "#09090b",
   "theme_color": "#8B5CF6",
@@ -23,6 +28,20 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo atendimento",
+      "short_name": "Novo",
+      "description": "Criar um novo registro de reunião para análise",
+      "url": "/meetings/new"
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Painel",
+      "description": "Abrir visão geral com indicadores e histórico",
+      "url": "/dashboard"
     }
   ]
 }

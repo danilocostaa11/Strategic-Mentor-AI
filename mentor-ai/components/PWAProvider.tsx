@@ -1,27 +1,80 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, X, Wifi, WifiOff } from "lucide-react";
+import { Download, X, WifiOff } from "lucide-react";
+
+interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
 
 export function PWAProvider({ children }: { children: React.ReactNode }) {
-    const [installPrompt, setInstallPrompt] = useState<any>(null);
+    const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+    const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
     const [showInstall, setShowInstall] = useState(false);
+    const [showUpdate, setShowUpdate] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
 
     useEffect(() => {
-        // Register Service Worker
-        if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register("/sw.js").catch(() => { });
+        const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+            || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+        let refreshTriggered = false;
+        let updateInterval: number | null = null;
+
+        const onControllerChange = () => {
+            if (refreshTriggered) return;
+            refreshTriggered = true;
+            window.location.reload();
+        };
+
+        // Register Service Worker only in production and secure context
+        if (
+            "serviceWorker" in navigator
+            && process.env.NODE_ENV === "production"
+            && (window.isSecureContext || window.location.hostname === "localhost")
+        ) {
+            navigator.serviceWorker.register("/sw.js").then((reg) => {
+                setRegistration(reg);
+
+                if (reg.waiting) {
+                    setShowUpdate(true);
+                }
+
+                reg.addEventListener("updatefound", () => {
+                    const worker = reg.installing;
+                    if (!worker) return;
+
+                    worker.addEventListener("statechange", () => {
+                        if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                            setShowUpdate(true);
+                        }
+                    });
+                });
+
+                navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+                updateInterval = window.setInterval(() => {
+                    reg.update().catch(() => { });
+                }, 60 * 60 * 1000);
+            }).catch(() => { });
         }
 
         // Capture install prompt
         const handler = (e: Event) => {
             e.preventDefault();
-            setInstallPrompt(e);
+            const promptEvent = e as BeforeInstallPromptEvent;
+            setInstallPrompt(promptEvent);
             const dismissed = localStorage.getItem("pwa-install-dismissed");
-            if (!dismissed) setShowInstall(true);
+            if (!dismissed && !isStandalone) setShowInstall(true);
         };
         window.addEventListener("beforeinstallprompt", handler);
+
+        const onInstalled = () => {
+            setShowInstall(false);
+            setInstallPrompt(null);
+        };
+        window.addEventListener("appinstalled", onInstalled);
 
         // Offline detection
         const goOffline = () => setIsOffline(true);
@@ -32,24 +85,38 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
 
         return () => {
             window.removeEventListener("beforeinstallprompt", handler);
+            window.removeEventListener("appinstalled", onInstalled);
             window.removeEventListener("offline", goOffline);
             window.removeEventListener("online", goOnline);
+            navigator.serviceWorker?.removeEventListener?.("controllerchange", onControllerChange);
+            if (updateInterval) {
+                window.clearInterval(updateInterval);
+            }
         };
     }, []);
 
     async function handleInstall() {
         if (!installPrompt) return;
-        installPrompt.prompt();
-        const { outcome } = await installPrompt.userChoice;
-        if (outcome === "accepted") {
-            setShowInstall(false);
+        try {
+            await installPrompt.prompt();
+            const { outcome } = await installPrompt.userChoice;
+            if (outcome === "accepted") {
+                setShowInstall(false);
+            }
+        } finally {
+            setInstallPrompt(null);
         }
-        setInstallPrompt(null);
     }
 
     function dismissInstall() {
         setShowInstall(false);
         localStorage.setItem("pwa-install-dismissed", "1");
+    }
+
+    function applyUpdate() {
+        if (!registration?.waiting) return;
+        setIsUpdating(true);
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
     }
 
     return (
@@ -65,7 +132,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
             )}
 
             {/* Install Banner */}
-            {showInstall && (
+            {showInstall && installPrompt && (
                 <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] glass-card rounded-2xl p-5 shadow-2xl shadow-purple-500/20 border border-purple-500/30 max-w-sm w-[calc(100%-2rem)] animate-in slide-in-from-bottom-4 fade-in duration-500">
                     <button
                         onClick={dismissInstall}
@@ -89,6 +156,31 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
                                 Instalar Agora
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {showUpdate && (
+                <div className="fixed bottom-6 right-6 z-[100] glass-card rounded-2xl p-4 shadow-2xl shadow-indigo-500/20 border border-indigo-500/30 max-w-sm w-[calc(100%-2rem)] sm:w-auto animate-in slide-in-from-bottom-4 fade-in duration-500">
+                    <p className="text-sm font-semibold text-white mb-1">Nova versão disponível</p>
+                    <p className="text-xs text-white/60 mb-3">
+                        Atualize agora para usar a versão mais recente do Mentor AI.
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={applyUpdate}
+                            disabled={isUpdating}
+                            className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 text-white text-xs font-medium hover:from-indigo-500 hover:to-cyan-500 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {isUpdating ? "Atualizando..." : "Atualizar agora"}
+                        </button>
+                        <button
+                            onClick={() => setShowUpdate(false)}
+                            disabled={isUpdating}
+                            className="px-3 py-2 rounded-lg border border-white/20 text-white/70 text-xs font-medium hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Depois
+                        </button>
                     </div>
                 </div>
             )}

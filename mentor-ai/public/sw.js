@@ -1,43 +1,59 @@
-const CACHE_NAME = 'mentor-ai-v2';
+const CACHE_VERSION = "v3";
+const STATIC_CACHE = `mentor-ai-static-${CACHE_VERSION}`;
+const PAGES_CACHE = `mentor-ai-pages-${CACHE_VERSION}`;
 
 const PRECACHE_ASSETS = [
-    '/manifest.json',
-    '/icons/icon-192.png',
-    '/icons/icon-512.png',
+    "/",
+    "/offline",
+    "/manifest.json",
+    "/favicon.ico",
+    "/icons/icon-192.png",
+    "/icons/icon-512.png",
 ];
 
-// Install: cache only true static assets
-self.addEventListener('install', (event) => {
+function isStaticAsset(pathname) {
+    return pathname.startsWith("/_next/static/")
+        || /\.(?:js|css|png|jpg|jpeg|svg|webp|ico|json|woff2?)$/i.test(pathname);
+}
+
+self.addEventListener("install", (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(PRECACHE_ASSETS);
-        })
+        caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_ASSETS))
     );
     self.skipWaiting();
 });
 
-// Activate: clean old caches
-self.addEventListener('activate', (event) => {
+self.addEventListener("activate", (event) => {
     event.waitUntil(
         caches.keys().then((keys) =>
             Promise.all(
-                keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+                keys
+                    .filter((key) => key.startsWith("mentor-ai-"))
+                    .filter((key) => ![STATIC_CACHE, PAGES_CACHE].includes(key))
+                    .map((key) => caches.delete(key))
             )
         )
     );
     self.clients.claim();
 });
 
-// Fetch strategy
-self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
+self.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "SKIP_WAITING") {
+        self.skipWaiting();
+    }
+});
 
-    // API calls: network only
-    if (url.pathname.startsWith('/api/')) {
+self.addEventListener("fetch", (event) => {
+    if (event.request.method !== "GET") return;
+
+    const url = new URL(event.request.url);
+    if (url.origin !== self.location.origin) return;
+
+    if (url.pathname.startsWith("/api/")) {
         event.respondWith(
             fetch(event.request).catch(() =>
-                new Response(JSON.stringify({ error: 'offline' }), {
-                    headers: { 'Content-Type': 'application/json' },
+                new Response(JSON.stringify({ error: "offline", message: "Sem conexão de rede" }), {
+                    headers: { "Content-Type": "application/json" },
                     status: 503,
                 })
             )
@@ -45,37 +61,45 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Page navigations: network-first (pages have dynamic data)
-    if (event.request.mode === 'navigate') {
+    if (event.request.mode === "navigate") {
         event.respondWith(
             fetch(event.request)
                 .then((response) => {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+                    if (response.ok) {
+                        const clone = response.clone();
+                        caches.open(PAGES_CACHE).then((cache) => cache.put(event.request, clone));
+                    }
                     return response;
                 })
-                .catch(() => {
-                    return caches.match(event.request).then((cached) => {
-                        return cached || caches.match('/') || new Response('Offline', { status: 503 });
-                    });
+                .catch(async () => {
+                    const cachedPage = await caches.match(event.request);
+                    if (cachedPage) return cachedPage;
+                    return caches.match("/offline");
                 })
         );
         return;
     }
 
-    // Static assets (JS, CSS, images, fonts): cache-first
+    if (isStaticAsset(url.pathname)) {
+        event.respondWith(
+            caches.match(event.request).then((cached) => {
+                const networkFetch = fetch(event.request)
+                    .then((response) => {
+                        if (response.ok) {
+                            const clone = response.clone();
+                            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+                        }
+                        return response;
+                    })
+                    .catch(() => cached);
+
+                return cached || networkFetch;
+            })
+        );
+        return;
+    }
+
     event.respondWith(
-        caches.match(event.request).then((cached) => {
-            if (cached) return cached;
-            return fetch(event.request).then((response) => {
-                if (response.ok && response.type === 'basic') {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-                }
-                return response;
-            }).catch(() => {
-                return new Response('Offline', { status: 503 });
-            });
-        })
+        fetch(event.request).catch(() => caches.match(event.request))
     );
 });
