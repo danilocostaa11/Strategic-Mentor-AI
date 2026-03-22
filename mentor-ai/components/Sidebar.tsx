@@ -12,21 +12,22 @@ const navItems = [
 ];
 
 type SidebarProps = {
+  isDesktop: boolean;
   isOpen: boolean;
   onClose: () => void;
 };
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isDesktop, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 flex h-dvh w-72 max-w-[85vw] flex-col glass-panel transition-transform duration-300 md:z-40 md:h-screen md:w-64 md:max-w-none ${
-        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      className={`fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,82vw)] flex-col glass-panel transition-transform duration-300 lg:z-40 lg:h-screen lg:w-64 ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
       }`}
-      aria-hidden={!isOpen}
+      aria-hidden={!isDesktop && !isOpen}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-6 py-6 md:py-8">
+      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-6 py-6 lg:py-8">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(139,92,246,0.5)]">
           <BrainCircuit className="w-5 h-5 text-white" />
         </div>
@@ -34,7 +35,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={onClose}
-          className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white md:hidden"
+          className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden"
           aria-label="Fechar menu"
         >
           <X className="h-5 w-5" />
