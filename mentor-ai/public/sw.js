@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v3";
+const CACHE_VERSION = "v4";
 const STATIC_CACHE = `mentor-ai-static-${CACHE_VERSION}`;
 const PAGES_CACHE = `mentor-ai-pages-${CACHE_VERSION}`;
 
@@ -82,19 +82,20 @@ self.addEventListener("fetch", (event) => {
 
     if (isStaticAsset(url.pathname)) {
         event.respondWith(
-            caches.match(event.request).then((cached) => {
-                const networkFetch = fetch(event.request)
-                    .then((response) => {
-                        if (response.ok) {
-                            const clone = response.clone();
-                            caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
-                        }
-                        return response;
-                    })
-                    .catch(() => cached);
+            fetch(event.request)
+                .then((response) => {
+                    if (response.ok) {
+                        const clone = response.clone();
+                        caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(async () => {
+                    const cached = await caches.match(event.request);
+                    if (cached) return cached;
 
-                return cached || networkFetch;
-            })
+                    return fetch(event.request);
+                })
         );
         return;
     }

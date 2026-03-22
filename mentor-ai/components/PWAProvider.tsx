@@ -34,8 +34,9 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
             && process.env.NODE_ENV === "production"
             && (window.isSecureContext || window.location.hostname === "localhost")
         ) {
-            navigator.serviceWorker.register("/sw.js").then((reg) => {
+            navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((reg) => {
                 setRegistration(reg);
+                reg.update().catch(() => { });
 
                 if (reg.waiting) {
                     setShowUpdate(true);
