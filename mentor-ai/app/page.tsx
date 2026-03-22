@@ -38,14 +38,15 @@ export default async function Home() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Dashboard</h1>
           <p className="text-white/60">Resumo da sua operação de mentoria.</p>
         </div>
-        <Link href="/meetings/new" className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]">
+        <Link href="/meetings/new" className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 font-medium text-white transition-all shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:bg-purple-500 hover:shadow-[0_0_30px_rgba(139,92,246,0.6)] sm:w-auto">
           <Plus className="w-5 h-5" />
           <span className="hidden sm:inline">Nova Análise</span>
+          <span className="sm:hidden">Nova Análise</span>
         </Link>
       </div>
 
@@ -120,14 +121,14 @@ export default async function Home() {
                   <Link
                     key={m.id}
                     href={`/meetings/${m.id}`}
-                    className="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group"
+                    className="group flex flex-col gap-3 rounded-xl p-4 transition-colors cursor-pointer hover:bg-white/5 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center">
                         <BrainCircuit className="w-5 h-5 text-white" />
                       </div>
-                      <div>
-                        <h4 className="text-white font-medium group-hover:text-purple-300 transition-colors">
+                      <div className="min-w-0">
+                        <h4 className="truncate text-white font-medium transition-colors group-hover:text-purple-300">
                           {m.title}
                         </h4>
                         <p className="text-xs text-white/50">
@@ -135,7 +136,7 @@ export default async function Home() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-4 text-sm sm:shrink-0">
                       <span className={`font-bold ${scoreColor(m.strategicScore)}`}>
                         {m.strategicScore ?? "—"}
                       </span>

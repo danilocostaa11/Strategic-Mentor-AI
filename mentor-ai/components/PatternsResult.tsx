@@ -49,17 +49,17 @@ function Section({ title, icon, children, defaultOpen = true }: {
         <div className="glass-card rounded-xl overflow-hidden">
             <button
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between p-5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="flex w-full items-center justify-between gap-3 p-4 transition-colors cursor-pointer hover:bg-white/[0.02] sm:p-5"
             >
                 <div className="flex items-center gap-3">
                     <span className="text-xl">{icon}</span>
-                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    <h3 className="text-left text-base font-semibold text-white sm:text-lg">{title}</h3>
                 </div>
                 <span className={`text-white/40 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
                     ▼
                 </span>
             </button>
-            {open && <div className="px-5 pb-5 border-t border-white/5 pt-4">{children}</div>}
+            {open && <div className="border-t border-white/5 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">{children}</div>}
         </div>
     );
 }
@@ -128,8 +128,8 @@ export default function PatternsResult({ report }: { report: PatternsReport }) {
 
             {/* Evolution */}
             {report.evolution && (
-                <div className="glass-card rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
+                <div className="glass-card rounded-xl p-5 sm:p-6">
+                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-3">
                             <span className="text-xl">📈</span>
                             <h3 className="text-lg font-semibold text-white">Evolução</h3>
@@ -207,7 +207,7 @@ export default function PatternsResult({ report }: { report: PatternsReport }) {
                 <Section title="Performance por Perfil DISC" icon="🧬">
                     <div className="space-y-3">
                         {report.profilePerformance.map((p, i) => (
-                            <div key={i} className="flex items-center gap-3 bg-white/[0.03] rounded-lg p-4 border border-white/5">
+                            <div key={i} className="flex flex-col gap-2 rounded-lg border border-white/5 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:gap-3">
                                 <DISCBadge disc={p.disc} />
                                 <TrendBadge trend={p.trend} />
                                 <span className="text-sm text-white/60">{p.notes}</span>

@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
   return (
     <main className="max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold gradient-text">Histórico de Reuniões</h2>
           <p className="text-white/40 text-sm mt-1">
@@ -136,15 +136,15 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar..."
-              className="pl-10 pr-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all w-48"
+              className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-10 pr-4 text-sm text-white placeholder-white/30 outline-none transition-all focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 sm:w-48"
             />
           </div>
           <button
@@ -174,7 +174,7 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
             <div>
               <label className="text-xs text-white/30 block mb-1">Cliente</label>
               <select
@@ -259,32 +259,31 @@ export default function DashboardPage() {
             {filtered.map(m => (
               <div
                 key={m.id}
-                className={`flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-all group ${deleting === m.id ? "opacity-40 pointer-events-none" : ""
+                className={`group flex flex-col gap-3 px-4 py-4 transition-all hover:bg-white/[0.02] sm:flex-row sm:items-center sm:gap-4 sm:px-5 ${deleting === m.id ? "opacity-40 pointer-events-none" : ""
                   }`}
               >
-                {/* Status dot */}
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${m.status === "DONE" ? "bg-emerald-400" :
-                    m.status === "ERROR" ? "bg-red-400" :
-                      m.status === "ANALYZING" ? "bg-blue-400 animate-pulse" : "bg-amber-400"
-                  }`} />
+                <div className="flex items-start gap-3 sm:min-w-0 sm:flex-1">
+                  <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${m.status === "DONE" ? "bg-emerald-400" :
+                      m.status === "ERROR" ? "bg-red-400" :
+                        m.status === "ANALYZING" ? "bg-blue-400 animate-pulse" : "bg-amber-400"
+                    }`} />
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-white/90 truncate">{m.title}</span>
-                    <StatusBadge status={m.status} />
-                    <OutcomeBadge outcome={m.dealOutcome} />
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-white/40">
-                    {m.client?.name && <span className="text-purple-400">{m.client.name}</span>}
-                    {m.segment && <span>{m.segment}</span>}
-                    <span>{new Date(m.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium text-white/90">{m.title}</span>
+                      <StatusBadge status={m.status} />
+                      <OutcomeBadge outcome={m.dealOutcome} />
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/40">
+                      {m.client?.name && <span className="text-purple-400">{m.client.name}</span>}
+                      {m.segment && <span>{m.segment}</span>}
+                      <span>{new Date(m.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Scores */}
-                <div className="flex items-center gap-4 shrink-0">
-                  <div className="hidden sm:flex flex-col items-end gap-0.5">
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:shrink-0 sm:flex-nowrap sm:justify-end">
+                  <div className="flex flex-col gap-0.5 sm:items-end">
                     <ScoreBadge value={m.strategicScore} label="Estratégia" />
                     <ScoreBadge value={m.closingScore} label="Fechamento" />
                     <ScoreBadge value={m.listeningScore} label="Escuta" />

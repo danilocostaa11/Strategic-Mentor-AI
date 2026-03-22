@@ -68,7 +68,7 @@ export default function PatternsPage() {
       </div>
 
       <div className="glass-card rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-white/5 flex items-center justify-between">
+        <div className="flex flex-col gap-2 border-b border-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm text-white/40">{selectedCount} reunião(ões) selecionada(s)</span>
           {meetings.length > 0 && (
             <button
@@ -90,20 +90,20 @@ export default function PatternsPage() {
             </div>
           ) : (
             meetings.map(m => (
-              <label key={m.id} className="flex items-center gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors cursor-pointer">
+              <label key={m.id} className="flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer hover:bg-white/[0.02] sm:items-center sm:px-5">
                 <input
                   type="checkbox"
                   checked={!!selected[m.id]}
                   onChange={(e) => setSelected(s => ({ ...s, [m.id]: e.target.checked }))}
                   className="rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/50"
                 />
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium text-white/90">{m.title}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-white/90">{m.title}</span>
                   {m.client?.name && (
-                    <span className="text-white/40 ml-2">— {m.client.name}</span>
+                    <span className="mt-0.5 block text-sm text-white/40 sm:ml-2 sm:mt-0 sm:inline">— {m.client.name}</span>
                   )}
                 </div>
-                <span className="text-xs text-white/30 shrink-0">
+                <span className="shrink-0 pt-0.5 text-xs text-white/30">
                   {new Date(m.createdAt).toLocaleDateString("pt-BR")}
                 </span>
               </label>

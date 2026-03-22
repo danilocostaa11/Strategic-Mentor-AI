@@ -23,8 +23,8 @@ function WordCount({ text }: { text: string }) {
   const tooShort = words > 0 && words < 50;
 
   return (
-    <div className="flex items-center justify-between mt-2">
-      <div className="flex items-center gap-4">
+    <div className="mt-2 flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <span className="text-xs text-white/30 flex items-center gap-1">
           <FileText className="w-3 h-3" />
           {words} palavras
@@ -36,7 +36,7 @@ function WordCount({ text }: { text: string }) {
         )}
       </div>
       {tooShort && (
-        <span className="text-xs text-amber-400 flex items-center gap-1">
+        <span className="flex items-center gap-1 text-xs text-amber-400">
           <AlertTriangle className="w-3 h-3" />
           Recomendado: mínimo 200 palavras
         </span>
@@ -160,7 +160,7 @@ function NewMeetingContent() {
     <main className="max-w-5xl mx-auto">
       <h2 className="text-2xl font-bold gradient-text mb-6">Nova Análise</h2>
 
-      <div className="glass-card rounded-xl p-6 space-y-5">
+      <div className="glass-card rounded-xl p-4 space-y-5 sm:p-6">
         <div>
           <label className="block text-sm font-medium text-white/60 mb-1.5">Título</label>
           <input

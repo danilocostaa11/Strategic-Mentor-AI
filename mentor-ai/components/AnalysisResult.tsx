@@ -65,7 +65,7 @@ function ScoreGauge({ label, value, icon }: { label: string; value: number; icon
     const color = getColor(value);
 
     return (
-        <div className="glass-card rounded-xl p-5 flex-1 min-w-[160px]">
+        <div className="glass-card min-w-0 flex-1 rounded-xl p-5 sm:min-w-[160px]">
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-lg">{icon}</span>
                 <span className="text-sm text-white/60 font-medium">{label}</span>
@@ -141,17 +141,17 @@ function Section({ title, icon, children, defaultOpen = true }: {
         <div className="glass-card rounded-xl overflow-hidden">
             <button
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between p-5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                className="flex w-full items-center justify-between gap-3 p-4 transition-colors cursor-pointer hover:bg-white/[0.02] sm:p-5"
             >
                 <div className="flex items-center gap-3">
                     <span className="text-xl">{icon}</span>
-                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    <h3 className="text-left text-base font-semibold text-white sm:text-lg">{title}</h3>
                 </div>
                 <span className={`text-white/40 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
                     ▼
                 </span>
             </button>
-            {open && <div className="px-5 pb-5 border-t border-white/5 pt-4">{children}</div>}
+            {open && <div className="border-t border-white/5 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">{children}</div>}
         </div>
     );
 }
@@ -166,7 +166,7 @@ export default function AnalysisResult({ analysis, meetingId, clientName }: { an
     return (
         <div className="space-y-6 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-2xl font-bold gradient-text">Resultado da Análise</h2>
                     <p className="text-sm text-white/40 mt-1">
@@ -184,7 +184,7 @@ export default function AnalysisResult({ analysis, meetingId, clientName }: { an
 
             {/* Scores */}
             {scores && (
-                <div className="flex gap-4 flex-wrap">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     <ScoreGauge label="Estratégia" value={scores.strategic} icon="🧠" />
                     <ScoreGauge label="Fechamento" value={scores.closing} icon="🎯" />
                     {scores.listening !== undefined && (
@@ -213,7 +213,7 @@ export default function AnalysisResult({ analysis, meetingId, clientName }: { an
                     <div className="space-y-4">
                         {profiles.map((p, i) => (
                             <div key={i} className="bg-white/[0.03] rounded-lg p-4 border border-white/5">
-                                <div className="flex items-center gap-3 mb-3">
+                                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                                     <span className="font-semibold text-white/90">{p.participant}</span>
                                     <DISCBadge disc={p.disc} />
                                     <span className="text-sm text-white/40">

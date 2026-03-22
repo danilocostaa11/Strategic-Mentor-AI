@@ -111,12 +111,12 @@ export default function FeedbackPanel({ meetingId, profiles, currentOutcome }: F
                             <Trophy className="w-3.5 h-3.5 inline mr-1" />
                             Resultado da Negociação
                         </label>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <select
                                 title="Resultado da negociação"
                                 value={outcome}
                                 onChange={e => { setOutcome(e.target.value); setSaved(s => ({ ...s, outcome: false })); }}
-                                className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:border-purple-500/50 outline-none transition-all"
+                                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-all focus:border-purple-500/50"
                             >
                                 {OUTCOME_OPTIONS.map(o => (
                                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -125,7 +125,7 @@ export default function FeedbackPanel({ meetingId, profiles, currentOutcome }: F
                             <button
                                 onClick={handleSaveOutcome}
                                 disabled={saving}
-                                className="px-3 py-2 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium hover:bg-purple-500/30 transition-all cursor-pointer disabled:opacity-40"
+                                className="rounded-lg border border-purple-500/30 bg-purple-500/20 px-3 py-2 text-sm font-medium text-purple-400 transition-all cursor-pointer hover:bg-purple-500/30 disabled:opacity-40"
                             >
                                 {saved.outcome ? <Check className="w-4 h-4 text-emerald-400" /> : "Salvar"}
                             </button>
@@ -164,7 +164,7 @@ export default function FeedbackPanel({ meetingId, profiles, currentOutcome }: F
                         {profiles.filter(p => p.participant !== "CONSULTOR").map((p, i) => (
                             <div key={i} className="bg-white/[0.03] rounded-lg p-4 border border-white/5">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-3">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                                         <span className="font-medium text-white/90">{p.participant}</span>
                                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold border bg-purple-500/20 text-purple-400 border-purple-500/30">
                                             {p.disc}
@@ -179,7 +179,7 @@ export default function FeedbackPanel({ meetingId, profiles, currentOutcome }: F
                                             <Check className="w-4 h-4" /> Perfil salvo
                                         </span>
                                     ) : editingDisc === p.participant ? (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                             <select
                                                 title="Corrigir perfil DISC"
                                                 value={selectedDisc}
@@ -206,7 +206,7 @@ export default function FeedbackPanel({ meetingId, profiles, currentOutcome }: F
                                             </button>
                                         </div>
                                     ) : (
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                             <button
                                                 onClick={() => handleConfirmDisc(p.participant, p.disc)}
                                                 disabled={saving}
@@ -241,11 +241,11 @@ export default function FeedbackPanel({ meetingId, profiles, currentOutcome }: F
                     className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:border-purple-500/50 outline-none transition-all resize-y"
                     placeholder="Adicione observações, contexto ou lembretes sobre esta reunião..."
                 />
-                <div className="flex justify-end mt-2">
+                <div className="mt-2 flex justify-stretch sm:justify-end">
                     <button
                         onClick={handleSaveNotes}
                         disabled={saving || !notes.trim()}
-                        className="px-4 py-2 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium hover:bg-purple-500/30 transition-all cursor-pointer disabled:opacity-40 flex items-center gap-2"
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-purple-500/30 bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-400 transition-all cursor-pointer hover:bg-purple-500/30 disabled:opacity-40 sm:w-auto"
                     >
                         {saved.notes ? <><Check className="w-4 h-4 text-emerald-400" /> Salvo</> : "Salvar Notas"}
                     </button>
