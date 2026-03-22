@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
-import { Topbar } from "@/components/Topbar";
 import { ClientProviders } from "@/components/ClientProviders";
+import { AppShell } from "@/components/AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,18 +46,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#09090b] text-white`}
       >
         <ClientProviders>
-          <div className="flex h-screen overflow-hidden">
-            <Sidebar />
-            <div className="flex-1 flex flex-col ml-64 relative w-full h-full">
-              <Topbar />
-              <main className="flex-1 overflow-y-auto p-8 relative">
-                <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/10 via-transparent to-transparent -z-10 pointer-events-none" />
-                <div className="max-w-6xl mx-auto w-full">
-                  {children}
-                </div>
-              </main>
-            </div>
-          </div>
+          <AppShell>{children}</AppShell>
         </ClientProviders>
       </body>
     </html>
