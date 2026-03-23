@@ -2,10 +2,11 @@ import { Menu, Search, Bell, UserCircle } from "lucide-react";
 import Link from "next/link";
 
 type TopbarProps = {
+    isDesktop: boolean;
     onMenuToggle: () => void;
 };
 
-export function Topbar({ onMenuToggle }: TopbarProps) {
+export function Topbar({ isDesktop, onMenuToggle }: TopbarProps) {
     return (
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-t-0 border-r-0 border-l-0 border-white/5 bg-black/40 px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] glass lg:px-8">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -13,7 +14,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                     type="button"
                     onClick={onMenuToggle}
                     aria-label="Abrir menu"
-                    className="rounded-2xl border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden"
+                    className={`rounded-2xl border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:bg-white/10 hover:text-white ${isDesktop ? "hidden" : ""}`}
                 >
                     <Menu className="h-5 w-5" />
                 </button>

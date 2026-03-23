@@ -22,9 +22,9 @@ export function Sidebar({ isDesktop, isOpen, onClose }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,82vw)] flex-col glass-panel transition-transform duration-300 lg:z-40 lg:h-screen lg:w-64 ${
-        isOpen ? "translate-x-0" : "-translate-x-full"
-      }`}
+      className={`fixed left-0 top-0 z-50 flex h-dvh flex-col glass-panel transition-transform duration-300 ${
+        isDesktop ? "w-64" : "w-[min(20rem,82vw)]"
+      } ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
       aria-hidden={!isDesktop && !isOpen}
     >
       <div className="flex items-center justify-between gap-3 border-b border-white/5 px-6 py-6 lg:py-8">
@@ -35,7 +35,7 @@ export function Sidebar({ isDesktop, isOpen, onClose }: SidebarProps) {
         <button
           type="button"
           onClick={onClose}
-          className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden"
+          className={`rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white ${isDesktop ? "hidden" : ""}`}
           aria-label="Fechar menu"
         >
           <X className="h-5 w-5" />

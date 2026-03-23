@@ -15,9 +15,9 @@ export function AppShell({ children }: AppShellProps) {
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const desktopQuery = window.matchMedia("(min-width: 1024px) and (hover: hover) and (pointer: fine)");
     const syncViewport = (event?: MediaQueryListEvent) => {
-      const matches = event?.matches ?? mediaQuery.matches;
+      const matches = event?.matches ?? desktopQuery.matches;
       setIsDesktop(matches);
       if (matches) {
         setIsSidebarOpen(false);
@@ -25,10 +25,10 @@ export function AppShell({ children }: AppShellProps) {
     };
 
     syncViewport();
-    mediaQuery.addEventListener("change", syncViewport);
+    desktopQuery.addEventListener("change", syncViewport);
 
     return () => {
-      mediaQuery.removeEventListener("change", syncViewport);
+      desktopQuery.removeEventListener("change", syncViewport);
     };
   }, []);
 
@@ -63,8 +63,14 @@ export function AppShell({ children }: AppShellProps) {
         />
       )}
 
-      <div className="relative flex min-h-dvh w-full flex-1 flex-col lg:ml-64">
-        <Topbar onMenuToggle={() => setIsSidebarOpen((current) => !current)} />
+      <div
+        className="relative flex min-h-dvh w-full flex-1 flex-col"
+        style={isDesktop ? { marginLeft: "16rem" } : undefined}
+      >
+        <Topbar
+          isDesktop={isDesktop}
+          onMenuToggle={() => setIsSidebarOpen((current) => !current)}
+        />
         <main className="relative flex-1 overflow-y-auto px-4 py-5 lg:p-8">
           <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/10 via-transparent to-transparent -z-10 pointer-events-none" />
           <div className="mx-auto w-full max-w-6xl">
