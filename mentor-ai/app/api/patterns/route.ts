@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { analyzePatterns } from "@/lib/analyzer";
 
+function getErrorCode(error: any): string | null {
+  return error?.code ?? error?.error?.code ?? error?.type ?? error?.error?.type ?? null;
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const meetingIds: string[] = body.meetingIds ?? [];
@@ -37,11 +41,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json(report);
   } catch (error: any) {
-    const message =
-      error?.status === 429
-        ? "Análise temporariamente indisponível. Tente novamente em alguns segundos."
-        : "Falha ao processar análise de padrões.";
+    const errorCode = getErrorCode(error);
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message =
+      errorCode === "insufficient_quota"
+        ? "Não foi possível concluir a análise de padrões porque a cota da OpenAI foi esgotada."
+        : error?.status === 429
+          ? "Análise temporariamente indisponível. Tente novamente em alguns segundos."
+          : "Falha ao processar análise de padrões.";
+
+    return NextResponse.json({ error: message, code: errorCode }, { status: 500 });
   }
 }

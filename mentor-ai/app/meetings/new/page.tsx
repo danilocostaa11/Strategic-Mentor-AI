@@ -143,7 +143,11 @@ function NewMeetingContent() {
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error ?? "Erro ao analisar.");
       setResult(data);
-      showToast("Análise concluída com sucesso! 🎉", "success");
+      if (data.usedFallback && data.modelUsed) {
+        showToast(`Análise concluída usando modelo alternativo (${data.modelUsed}). ⚡`, "success");
+      } else {
+        showToast("Análise concluída com sucesso! 🎉", "success");
+      }
 
       // Scroll to result
       setTimeout(() => {

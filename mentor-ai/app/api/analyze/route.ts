@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { analyzeMeeting } from "@/lib/analyzer";
 
+function getErrorCode(error: any): string | null {
+  return error?.code ?? error?.error?.code ?? error?.type ?? error?.error?.type ?? null;
+}
+
 export async function POST(req: Request) {
   let body: any;
   try {
@@ -77,6 +81,8 @@ export async function POST(req: Request) {
       analysis: result.analysis,
       promptVersion: result.promptVersion,
       fromCache: result.fromCache,
+      modelUsed: result.modelUsed,
+      usedFallback: result.usedFallback ?? false,
     });
   } catch (error: any) {
     await prisma.meeting.update({
@@ -84,13 +90,17 @@ export async function POST(req: Request) {
       data: { status: "ERROR" },
     });
 
+    const errorCode = getErrorCode(error);
+
     const message =
-      error?.status === 429
-        ? "Análise temporariamente indisponível. Sua transcrição foi salva."
-        : "Falha ao processar análise. Sua transcrição foi salva.";
+      errorCode === "insufficient_quota"
+        ? "Não foi possível concluir a análise porque a cota da OpenAI foi esgotada. Sua transcrição foi salva."
+        : error?.status === 429
+          ? "Análise temporariamente indisponível. Sua transcrição foi salva."
+          : "Falha ao processar análise. Sua transcrição foi salva.";
 
     return NextResponse.json(
-      { error: message, meetingId: meeting.id },
+      { error: message, code: errorCode, meetingId: meeting.id },
       { status: 500 }
     );
   }
