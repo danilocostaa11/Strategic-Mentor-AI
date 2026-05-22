@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 
-export const PROMPT_VERSION = "v1.2-2026-03";
+export const PROMPT_VERSION = "v1.3-2026-05";
 
 let _promptHashCache: string | null = null;
 
@@ -15,7 +15,7 @@ export function getBasePromptHash(): string {
   return _promptHashCache;
 }
 
-const INDIVIDUAL_TEMPLATE_SIGNATURE = "strategic-mentor-individual-v1.2";
+const INDIVIDUAL_TEMPLATE_SIGNATURE = "strategic-mentor-individual-v1.3";
 
 const SCORING_RUBRIC = `
 === RUBRICA DE SCORES (use como referência obrigatória) ===
@@ -60,6 +60,146 @@ ATENÇÃO: Estas regras são INVIOLÁVEIS. Quebrá-las invalida toda a análise.
 10) O campo "meta.notes" deve listar QUALQUER limitação encontrada (ex: "transcrição curta", "falas misturadas sem identificação clara").
 `;
 
+// v1.3 — Rules for handling multiple consultants on the same call
+// (common in real estate deals: intermediário Yumida + representante incorporadora)
+const MULTI_CONSULTANT_RULES = `
+=== REGRAS DE MÚLTIPLOS CONSULTORES (CRÍTICO) ===
+
+Em deals B2B complexos (imobiliário, consultoria, alto ticket), MAIS DE UMA pessoa pode
+estar do "lado da venda" — ex: corretor intermediário + representante da construtora.
+NÃO os trate como um único "CONSULTOR" — isso falsifica scores.
+
+Regras:
+1) Se identificar 2+ pessoas do lado vendedor, use labels distintos:
+   - CONSULTOR_PRINCIPAL (quem é o usuário do app — geralmente identificável pelo "Cliente cadastrado")
+   - CONSULTOR_PARCEIRO (o outro, ex: representante da construtora)
+   - Ou nomes específicos quando claros na transcrição
+2) Em cada participant, inclua o campo "team" com a organização quando rastreável
+   (ex: "Yumida", "MAC", "Construtora X", "Empresa Y"). Use null se desconhecido.
+3) Em "strengths", "improvements" e "missedOpportunities", SEMPRE atribua ações
+   a um consultor específico ("CONSULTOR_PRINCIPAL fez X" / "CONSULTOR_PARCEIRO disse Y").
+4) Os SCORES principais avaliam o CONSULTOR_PRINCIPAL (o usuário do app).
+   Performance dos demais entra em "missedOpportunities" ou notas, mas NÃO afeta scores.
+5) Se não dá pra distinguir, mantenha "CONSULTOR" único e EXPLIQUE EM meta.notes
+   por que não foi possível separar.
+`;
+
+// v1.3 — Force tactical questions, ban generic ones
+const TACTICAL_QUESTIONS_RULES = `
+=== PERGUNTAS ESTRATÉGICAS — REGRAS OBRIGATÓRIAS ===
+
+PROIBIDO gerar perguntas genéricas de manual de venda. Cada pergunta DEVE:
+
+1) Referenciar um FATO ESPECÍFICO mencionado na transcrição (citar entre colchetes).
+2) Ser TÁTICA — não exploratória. Tem que ter um "próximo movimento" claro embutido.
+3) Ser FORMULADA pra ser dita literalmente na próxima reunião.
+4) NÃO repetir pergunta que o cliente JÁ RESPONDEU nesta reunião.
+
+EXEMPLOS DE TRANSFORMAÇÃO:
+
+ERRADO (genérico): "Qual seria o impacto da proposta para sua família?"
+CERTO (tático):    "[Cliente disse: pai 83, mãe 78] — Qual prazo MÁXIMO de obra os seus pais
+                    aceitam sem reabrir a discussão?"
+
+ERRADO (já respondido): "Como o cliente vê a opção 100% em dinheiro?"
+CERTO (avança):         "Se a proposta 100% em dinheiro vier 12% abaixo da permuta,
+                         ainda fecha?"
+
+ERRADO (vago):  "Há outros pontos a considerar?"
+CERTO (foco):   "[Cliente mencionou apartamento na Brigadeiro esperando metrô] —
+                 Faz sentido a gente apoiar essa venda em paralelo?"
+
+REGRA NUMÉRICA: pelo menos 70% das perguntas devem citar entre colchetes ou aspas
+um trecho/fato específico da transcrição. Se uma pergunta não cabe nessa regra,
+descarte-a.
+`;
+
+// v1.3 — Extract contextual facts that don't fit conversation blocks
+const CONTEXTUAL_EXTRACTION_RULES = `
+=== EXTRAÇÃO DE FATOS CONTEXTUAIS ===
+
+Além dos blocos de conversa, IDENTIFIQUE e LISTE fatos que aparecem na transcrição mas
+NÃO se encaixam em rapport/diagnóstico/objeções — e que são essenciais pra próxima ação.
+
+Categorias:
+- "pessoa-terceira" — família, sócios, outros decisores citados mas não presentes
+- "idade" — idades mencionadas (pais, filhos, sócios)
+- "valor" — preços, áreas, prazos, % — qualquer número relevante
+- "endereco" — imóveis, projetos, ruas, bairros citados
+- "empresa" — concorrentes, parceiros, marcas mencionadas
+- "evento-historico" — negócio anterior, episódio do passado relevante
+- "estado-emocional" — fase de vida, conflito familiar, trauma, motivação implícita
+- "outro-deal-em-aberto" — outras negociações do mesmo cliente
+
+Cada fato é ATÔMICO (1 fato por entrada) e cita a evidência literal.
+Estes fatos alimentam a estratégia da próxima reunião — não os omita.
+`;
+
+// v1.3 — Surface cross-sell / relationship signals
+const CROSS_SELL_RULES = `
+=== SINAIS DE OPORTUNIDADE PARALELA ===
+
+Identifique momentos onde o CLIENTE menciona — mesmo em digressão / conversa social — sinais
+que podem virar relacionamento futuro ou outro deal. Categorias:
+
+- "outro-imovel" — cliente cita outro imóvel próprio (vende? aluga? parado?)
+- "outro-negocio" — projeto/empresa não relacionada à reunião atual
+- "indicacao-potencial" — parente, sócio, conhecido com necessidade similar
+- "problema-paralelo" — dor não resolvida em outro contexto que o consultor pode ajudar
+- "concorrente" — cliente atual/ex-cliente de outra empresa (sinal de mercado)
+
+Estes vão em "crossSellSignals". É a matéria-prima de relacionamentos futuros que
+NÃO está no escopo desta reunião mas vale registrar pra ação posterior.
+
+NÃO confunda com objeção. Cross-sell signal é uma OPORTUNIDADE adjacente, não um obstáculo.
+`;
+
+// v1.3 — Track every open commitment, even informal ones
+const OPEN_COMMITMENTS_RULES = `
+=== COMPROMISSOS ABERTOS ===
+
+Liste TODA promessa feita por qualquer participante — mesmo sem prazo definido.
+Inclui promessas implícitas ("vou ver", "te passo depois", "mando", "vamos pensar",
+"deixa eu falar com X"). Essas são as que mais somem.
+
+Cada compromisso tem:
+- who: quem prometeu (CONSULTOR_PRINCIPAL | CONSULTOR_PARCEIRO | CLIENTE_1 | etc)
+- what: o que ficou de fazer (objetivo)
+- deadline: data/prazo explícito OU "indefinido"
+- evidence: trecho literal da transcrição
+
+Esses compromissos viram o follow-up da próxima reunião.
+`;
+
+// v1.3 — Identify client's strategic positioning (more useful than DISC alone)
+const POSITIONING_RULES = `
+=== POSICIONAMENTO ESTRATÉGICO DO CLIENTE ===
+
+Identifique a POSTURA DE BARGANHA do cliente baseada em comportamento observado na
+transcrição. Categorias (escolha 1 valor pra cada):
+
+- urgency: "alta" | "media" | "baixa" | "indefinido"
+  (precisa fechar logo? deadline real? ou pode esperar?)
+
+- price_sensitivity: "alta" | "media" | "baixa" | "indefinido"
+  (negocia cada ponto? ou foca em condições e não preço?)
+
+- relationship_lean: "transacional" | "consultivo" | "longo_prazo" | "indefinido"
+  (quer fechar e sumir? quer conselho? quer parceria contínua?)
+
+- decision_authority: "autonomo" | "consulta_familia" | "delegado_por_terceiros" | "indefinido"
+  (decide sozinho? precisa alinhar com sócio/família? está representando outros?)
+
+- bargaining_stance: "comprador_motivado" | "vendedor_motivado" | "explorador" | "indiferente" | "indefinido"
+  (a pressão tá no lado dele ou no nosso? ele tá só pesquisando?)
+
+Cite a EVIDÊNCIA literal (1-2 trechos) que sustenta cada categoria. Use "indefinido"
+SOMENTE quando NÃO há sinal nenhum.
+
+Este perfil é MAIS útil pra estratégia da próxima reunião do que o DISC isolado.
+DISC descreve estilo de comunicação; positioning descreve a postura de negócio.
+`;
+
 export function buildIndividualPrompt(args: {
   context: string;
   transcript: string;
@@ -73,6 +213,18 @@ Você é um Mentor Estratégico de Performance Comercial (equilibrado: método +
 Sua tarefa é analisar transcrições REAIS de reuniões comerciais.
 
 ${ANTI_HALLUCINATION_RULES}
+
+${MULTI_CONSULTANT_RULES}
+
+${TACTICAL_QUESTIONS_RULES}
+
+${CONTEXTUAL_EXTRACTION_RULES}
+
+${CROSS_SELL_RULES}
+
+${OPEN_COMMITMENTS_RULES}
+
+${POSITIONING_RULES}
 
 === PLAYBOOKS (referência para avaliação, NÃO para fabricar conteúdo) ===
 ${context}
@@ -89,11 +241,12 @@ Analise a transcrição bruta abaixo. Ela pode estar desorganizada, informal, co
 IMPORTANTE: Sua análise deve ser um ESPELHO FIEL do que aconteceu na reunião, não um relatório genérico.
 
 Regras de análise:
-1) Identifique participantes e separe falas:
-   - CONSULTOR (quem está vendendo/apresentando)
+1) Identifique participantes e separe falas (ver REGRAS DE MÚLTIPLOS CONSULTORES acima):
+   - CONSULTOR_PRINCIPAL ou CONSULTOR (quem é o usuário do app)
+   - CONSULTOR_PARCEIRO (se houver outra pessoa do lado vendedor)
    - CLIENTE_1, CLIENTE_2, CLIENTE_3 (quem está recebendo/comprando)
-   - Se não é possível distinguir claramente os participantes, explique no campo meta.notes
-   - Para cada CLIENTE_n, inferir papel: decisor / influenciador / técnico / observador (se possível). Se não for possível, use "indefinido".
+   - Inclua "team" quando rastreável
+   - Para cada CLIENTE_n, inferir papel: decisor / influenciador / técnico / observador
 
 2) Reorganize a conversa nos blocos abaixo. SOMENTE inclua blocos que REALMENTE existem na transcrição:
    - RAPPORT
@@ -108,16 +261,20 @@ Regras de análise:
 
 3) Classifique PERFIL (DISC) por participante cliente:
    Analítico / Integrador / Expressivo / Pragmático / Indefinido
-   - SEMPRE tente classificar com base em evidências comportamentais da transcrição
-   - Analítico: pede dados, números, estudos, é metódico, preciso
-   - Integrador: valoriza relações, é acolhedor, decide em grupo, busca consenso
-   - Expressivo: entusiasmado, reage com emoção, usa exclamações, fala bastante
-   - Pragmático: direto, objetivo, foco em resultado, pouco tempo para conversa fiada
-   - Use "Indefinido" SOMENTE se não há NENHUMA pista comportamental
+   - Use evidências comportamentais da transcrição
    - inclua confiança (0-100): 20-40 se poucas pistas, 40-70 se evidência moderada, 70-100 se evidência clara
-   - inclua evidências que são TRECHOS LITERAIS da transcrição (copie exatamente)
+   - inclua evidências que são TRECHOS LITERAIS da transcrição
 
-4) Avalie o CONSULTOR baseado NO QUE REALMENTE FEZ na transcrição:
+4) **NOVO em v1.3:** Identifique POSITIONING estratégico do cliente (ver REGRAS POSICIONAMENTO).
+   Este perfil define a estratégia da próxima reunião MAIS que o DISC isolado.
+
+5) **NOVO em v1.3:** Extraia FATOS CONTEXTUAIS (idades, valores, terceiros, eventos históricos).
+
+6) **NOVO em v1.3:** Identifique CROSS-SELL SIGNALS (outras oportunidades adjacentes mencionadas).
+
+7) **NOVO em v1.3:** Liste COMPROMISSOS ABERTOS (promessas com ou sem prazo).
+
+8) Avalie o CONSULTOR PRINCIPAL baseado NO QUE REALMENTE FEZ na transcrição:
    - condução estratégica (reativo vs conduzindo) — cite exemplos reais
    - escuta ativa (perguntas abertas feitas, validações, espaço dado)
    - estilo de comunicação predominante
@@ -125,21 +282,25 @@ Regras de análise:
    - qualidade de abertura
    - fechamento (houve CTA? Próximo passo? Data?)
 
-5) Gere recomendações práticas para o próximo encontro baseadas nas LACUNAS REAIS observadas.
+9) Gere recomendações práticas para o próximo encontro. As perguntas DEVEM seguir
+   as REGRAS DE PERGUNTAS ESTRATÉGICAS (≥70% citam fato/trecho específico).
 
-6) Atribua os scores seguindo RIGOROSAMENTE a rubrica acima. Scores altos exigem evidência na transcrição.
+10) Atribua os scores seguindo RIGOROSAMENTE a rubrica acima. Os scores avaliam o
+    CONSULTOR_PRINCIPAL, não o CONSULTOR_PARCEIRO. Performance do parceiro entra em
+    "missedOpportunities" se relevante.
 
 === FORMATO DE SAÍDA (OBRIGATÓRIO — JSON válido) ===
 
 {
   "participants": [
-    { "label": "CONSULTOR", "role": "consultor" },
-    { "label": "CLIENTE_1", "role": "decisor|influenciador|tecnico|observador|indefinido" }
+    { "label": "CONSULTOR_PRINCIPAL", "role": "consultor", "team": "Yumida" },
+    { "label": "CONSULTOR_PARCEIRO", "role": "consultor", "team": "MAC" },
+    { "label": "CLIENTE_1", "role": "decisor|influenciador|tecnico|observador|indefinido", "team": null }
   ],
   "structuredConversation": [
     { "block": "RAPPORT|TRANSIÇÃO|DIAGNÓSTICO|DORES|ARGUMENTAÇÃO|OBJEÇÕES|AVANÇO/FECHAMENTO|ENCERRAMENTO",
-      "highlights": ["bullets curtos e ESPECÍFICOS sobre o que aconteceu"],
-      "keyQuotes": [{ "speaker": "CONSULTOR|CLIENTE_1", "quote": "trecho LITERAL da transcrição" }]
+      "highlights": ["bullets curtos e ESPECÍFICOS, atribuindo a cada consultor quando relevante"],
+      "keyQuotes": [{ "speaker": "CONSULTOR_PRINCIPAL|CONSULTOR_PARCEIRO|CLIENTE_1", "quote": "trecho LITERAL da transcrição" }]
     }
   ],
   "profiles": [
@@ -149,19 +310,47 @@ Regras de análise:
       "evidence": ["trechos LITERAIS da transcrição que justificam o perfil"]
     }
   ],
+  "clientPositioning": {
+    "urgency": "alta|media|baixa|indefinido",
+    "price_sensitivity": "alta|media|baixa|indefinido",
+    "relationship_lean": "transacional|consultivo|longo_prazo|indefinido",
+    "decision_authority": "autonomo|consulta_familia|delegado_por_terceiros|indefinido",
+    "bargaining_stance": "comprador_motivado|vendedor_motivado|explorador|indiferente|indefinido",
+    "evidence": ["trechos LITERAIS que sustentam o posicionamento"]
+  },
+  "contextualFacts": [
+    { "category": "pessoa-terceira|idade|valor|endereco|empresa|evento-historico|estado-emocional|outro-deal-em-aberto",
+      "fact": "descrição atômica do fato",
+      "evidence": "trecho LITERAL da transcrição"
+    }
+  ],
   "scores": {
     "strategic": 0,
     "closing": 0,
     "listening": 0
   },
-  "strengths": ["3-6 itens ESPECÍFICOS com referência ao que aconteceu na transcrição"],
-  "improvements": ["3-6 itens ESPECÍFICOS com base em lacunas REAIS observadas"],
-  "missedOpportunities": ["2-6 momentos CONCRETOS em que o consultor poderia ter agido diferente"],
+  "strengths": ["3-6 itens ESPECÍFICOS com referência ao que aconteceu — atribua ao consultor que fez (ex: 'CONSULTOR_PRINCIPAL fez X')"],
+  "improvements": ["3-6 itens ESPECÍFICOS com base em lacunas REAIS — atribua ao consultor responsável"],
+  "missedOpportunities": ["2-6 momentos CONCRETOS — atribua ao consultor que deveria ter agido"],
+  "crossSellSignals": [
+    { "type": "outro-imovel|outro-negocio|indicacao-potencial|problema-paralelo|concorrente",
+      "description": "o que apareceu",
+      "evidence": "trecho LITERAL",
+      "action": "próxima ação sugerida (1 linha)"
+    }
+  ],
+  "openCommitments": [
+    { "who": "CONSULTOR_PRINCIPAL|CONSULTOR_PARCEIRO|CLIENTE_1|etc",
+      "what": "o que ficou de fazer",
+      "deadline": "data/prazo explícito OU 'indefinido'",
+      "evidence": "trecho LITERAL"
+    }
+  ],
   "nextMeetingPlan": {
     "goal": "objetivo claro baseado no estado atual da negociação",
-    "strategy": ["3-6 bullets"],
-    "questions": ["5-12 perguntas estratégicas relevantes ao contexto desta reunião"],
-    "closingStrategy": ["3-6 bullets"]
+    "strategy": ["3-6 bullets específicos"],
+    "questions": ["5-12 perguntas estratégicas — pelo menos 70% citam fato/trecho específico entre colchetes ou aspas"],
+    "closingStrategy": ["3-6 bullets específicos"]
   },
   "meta": {
     "segment": "${segment ?? ""}",
@@ -184,7 +373,7 @@ export function buildPatternsPrompt(args: {
 
   return `
 Você é um Mentor Estratégico de Performance Comercial.
-Use os PLAYBOOKS como referência. Analise padrões recorrentes do CONSULTOR ao longo de várias reuniões.
+Use os PLAYBOOKS como referência. Analise padrões recorrentes do CONSULTOR_PRINCIPAL ao longo de várias reuniões.
 
 REGRA CRÍTICA: Baseie sua análise SOMENTE nos dados fornecidos. NÃO invente padrões que não existem nos dados.
 
@@ -194,6 +383,10 @@ ${context}
 Segmento: ${segment ?? "N/A"}
 
 Entrada: uma lista de análises anteriores (JSON). Não invente nada além do que está ali.
+
+NOVO em v1.3: as análises podem ter os campos clientPositioning, contextualFacts, crossSellSignals,
+openCommitments. Use-os para identificar padrões recorrentes (ex: posicionamento típico de cliente
+do segmento, tipos de cross-sell que aparecem, compromissos que ficam abertos).
 
 === SAÍDA (SOMENTE JSON) ===
 {

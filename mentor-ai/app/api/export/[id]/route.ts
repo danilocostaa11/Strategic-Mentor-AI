@@ -84,9 +84,35 @@ function buildMarkdown(meeting: any, analysis: any, baseUrl: string): string {
         lines.push("## Participantes");
         lines.push("");
         for (const p of analysis.participants) {
-            lines.push(`- **${p.label}** — ${p.role}`);
+            const team = p.team ? ` *(${p.team})*` : "";
+            lines.push(`- **${p.label}** — ${p.role}${team}`);
         }
         lines.push("");
+    }
+
+    // v1.3+ — Posicionamento estratégico do cliente
+    if (analysis.clientPositioning) {
+        const cp = analysis.clientPositioning;
+        const hasAny = cp.urgency || cp.price_sensitivity || cp.relationship_lean || cp.decision_authority || cp.bargaining_stance;
+        if (hasAny) {
+            lines.push("## 🎲 Posicionamento estratégico do cliente");
+            lines.push("");
+            lines.push("| Dimensão | Valor |");
+            lines.push("|----------|-------|");
+            if (cp.urgency) lines.push(`| Urgência | ${cp.urgency} |`);
+            if (cp.price_sensitivity) lines.push(`| Sensibilidade a preço | ${cp.price_sensitivity} |`);
+            if (cp.relationship_lean) lines.push(`| Inclinação relacional | ${cp.relationship_lean} |`);
+            if (cp.decision_authority) lines.push(`| Autoridade de decisão | ${cp.decision_authority} |`);
+            if (cp.bargaining_stance) lines.push(`| Postura de barganha | ${cp.bargaining_stance} |`);
+            lines.push("");
+            if (cp.evidence?.length) {
+                lines.push("**Evidências:**");
+                for (const e of cp.evidence) {
+                    lines.push(`> ${e}`);
+                }
+                lines.push("");
+            }
+        }
     }
 
     if (analysis.profiles?.length) {
@@ -102,6 +128,21 @@ function buildMarkdown(meeting: any, analysis: any, baseUrl: string): string {
                 lines.push("");
             }
         }
+    }
+
+    // v1.3+ — Fatos contextuais (idades, valores, terceiros, eventos)
+    if (analysis.contextualFacts?.length) {
+        lines.push("## 🧩 Fatos contextuais");
+        lines.push("");
+        lines.push("| Categoria | Fato | Evidência |");
+        lines.push("|-----------|------|-----------|");
+        for (const f of analysis.contextualFacts) {
+            const cat = f.category || "—";
+            const fact = (f.fact || "").replace(/\|/g, "\\|");
+            const evidence = (f.evidence || "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+            lines.push(`| ${cat} | ${fact} | ${evidence ? `*"${evidence.slice(0, 80)}${evidence.length > 80 ? "..." : ""}"*` : "—"} |`);
+        }
+        lines.push("");
     }
 
     if (analysis.structuredConversation?.length) {
@@ -148,6 +189,36 @@ function buildMarkdown(meeting: any, analysis: any, baseUrl: string): string {
         lines.push("");
         for (const s of analysis.missedOpportunities) {
             lines.push(`- ${s}`);
+        }
+        lines.push("");
+    }
+
+    // v1.3+ — Sinais de oportunidade paralela / cross-sell
+    if (analysis.crossSellSignals?.length) {
+        lines.push("## 🔁 Sinais de oportunidade paralela");
+        lines.push("");
+        for (const s of analysis.crossSellSignals) {
+            lines.push(`### ${s.type || "sinal"}`);
+            lines.push("");
+            if (s.description) lines.push(`**O que apareceu:** ${s.description}`);
+            if (s.evidence) lines.push(`> *"${s.evidence}"*`);
+            if (s.action) lines.push(`**Próxima ação sugerida:** ${s.action}`);
+            lines.push("");
+        }
+    }
+
+    // v1.3+ — Compromissos abertos
+    if (analysis.openCommitments?.length) {
+        lines.push("## ✅ Compromissos abertos");
+        lines.push("");
+        lines.push("| Quem | O quê | Prazo | Evidência |");
+        lines.push("|------|-------|-------|-----------|");
+        for (const c of analysis.openCommitments) {
+            const who = c.who || "—";
+            const what = (c.what || "").replace(/\|/g, "\\|");
+            const deadline = c.deadline || "indefinido";
+            const evidence = (c.evidence || "").replace(/\|/g, "\\|").replace(/\n/g, " ").slice(0, 70);
+            lines.push(`| ${who} | ${what} | ${deadline} | ${evidence ? `*"${evidence}..."*` : "—"} |`);
         }
         lines.push("");
     }
