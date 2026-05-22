@@ -1,32 +1,222 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-    req: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    const { id } = await params;
+// R-AZ2 — segmentos que NÃO podem ser exportados ao vault de IA
+// Visitas médicas AZ devem passar pelo processo de destilação manual
+// (ver 13-playbooks/destilacao-licoes-venda.md no vault Segundo Cérebro)
+const PHARMA_SEGMENTS = new Set(["Pharma", "pharma", "Farma", "farma"]);
 
-    const meeting = await prisma.meeting.findUnique({
-        where: { id },
-        include: { client: true },
-    });
+function slugify(s: string): string {
+    return s
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60);
+}
 
-    if (!meeting) {
-        return NextResponse.json({ error: "Reunião não encontrada." }, { status: 404 });
+function mapSegmentToArea(segment?: string | null): string {
+    if (!segment) return "pessoal";
+    const s = segment.toLowerCase();
+    if (s.includes("imobil") || s.includes("yumida") || s.includes("incorporadora") || s.includes("investidor")) return "yumida";
+    if (s.includes("clinic") || s.includes("medic") || s.includes("advoc") || s.includes("yumia") || s.includes("pme")) return "yumia";
+    return "pessoal";
+}
+
+function buildMarkdown(meeting: any, analysis: any, baseUrl: string): string {
+    const clientName = meeting.client?.name || "Sem cliente";
+    const clientSlug = meeting.client ? slugify(meeting.client.name) : "sem-cliente";
+    const segment = meeting.segment || meeting.client?.segment || null;
+    const area = mapSegmentToArea(segment);
+    const date = new Date(meeting.createdAt);
+    const dateISO = date.toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const lines: string[] = [];
+
+    // Frontmatter — compatível com template-captura do vault Segundo Cérebro
+    lines.push("---");
+    lines.push("tipo: reuniao");
+    lines.push("status: processado");
+    lines.push(`area: ${area}`);
+    lines.push(`contato: ${clientSlug}`);
+    lines.push("canal: reuniao");
+    lines.push(`data: ${dateISO}`);
+    lines.push("fonte: Mentor AI");
+    lines.push(`fonte_url: ${baseUrl}/meetings/${meeting.id}`);
+    lines.push("mentor_ai:");
+    lines.push(`  meeting_id: ${meeting.id}`);
+    if (meeting.promptVersion) lines.push(`  prompt_version: ${meeting.promptVersion}`);
+    if (meeting.dealOutcome) lines.push(`  deal_outcome: ${meeting.dealOutcome}`);
+    if (analysis.scores) {
+        lines.push("  scores:");
+        lines.push(`    estrategia: ${analysis.scores.strategic ?? "null"}`);
+        lines.push(`    fechamento: ${analysis.scores.closing ?? "null"}`);
+        lines.push(`    escuta_ativa: ${analysis.scores.listening ?? "null"}`);
+    }
+    const tags = ["mentor-ai-export"];
+    if (segment) tags.push(slugify(segment));
+    lines.push(`tags: [${tags.join(", ")}]`);
+    lines.push(`criado_em: ${today}`);
+    lines.push(`atualizado_em: ${today}`);
+    lines.push("---");
+    lines.push("");
+
+    lines.push(`# ${meeting.title}`);
+    lines.push("");
+
+    lines.push("## Contexto");
+    lines.push("");
+    lines.push(`**Cliente:** ${clientName}`);
+    if (segment) lines.push(`**Segmento:** ${segment}`);
+    lines.push(`**Data:** ${date.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}`);
+    if (analysis.scores) {
+        lines.push("");
+        lines.push("**Scores:**");
+        lines.push(`- Estratégia: ${analysis.scores.strategic ?? "—"}/10`);
+        lines.push(`- Fechamento: ${analysis.scores.closing ?? "—"}/10`);
+        lines.push(`- Escuta Ativa: ${analysis.scores.listening ?? "—"}/10`);
+    }
+    lines.push("");
+
+    if (analysis.participants?.length) {
+        lines.push("## Participantes");
+        lines.push("");
+        for (const p of analysis.participants) {
+            lines.push(`- **${p.label}** — ${p.role}`);
+        }
+        lines.push("");
     }
 
-    if (!meeting.analysisJson) {
-        return NextResponse.json({ error: "Análise não disponível." }, { status: 400 });
+    if (analysis.profiles?.length) {
+        lines.push("## Perfis DISC");
+        lines.push("");
+        for (const p of analysis.profiles) {
+            lines.push(`### ${p.participant} — ${p.disc} *(confiança: ${p.confidence}%)*`);
+            lines.push("");
+            if (p.evidence?.length) {
+                for (const e of p.evidence) {
+                    lines.push(`> ${e}`);
+                }
+                lines.push("");
+            }
+        }
     }
 
-    const analysis = JSON.parse(meeting.analysisJson);
+    if (analysis.structuredConversation?.length) {
+        lines.push("## Conversa estruturada");
+        lines.push("");
+        for (const block of analysis.structuredConversation) {
+            lines.push(`### ${block.block}`);
+            lines.push("");
+            if (block.highlights?.length) {
+                for (const h of block.highlights) {
+                    lines.push(`- ${h}`);
+                }
+                lines.push("");
+            }
+            if (block.keyQuotes?.length) {
+                for (const q of block.keyQuotes) {
+                    lines.push(`> **${q.speaker}:** "${q.quote}"`);
+                    lines.push("");
+                }
+            }
+        }
+    }
+
+    if (analysis.strengths?.length) {
+        lines.push("## 🎯 Pontos fortes");
+        lines.push("");
+        for (const s of analysis.strengths) {
+            lines.push(`- ${s}`);
+        }
+        lines.push("");
+    }
+
+    if (analysis.improvements?.length) {
+        lines.push("## ⚠️ Pontos de melhoria");
+        lines.push("");
+        for (const s of analysis.improvements) {
+            lines.push(`- ${s}`);
+        }
+        lines.push("");
+    }
+
+    if (analysis.missedOpportunities?.length) {
+        lines.push("## ✗ Oportunidades perdidas");
+        lines.push("");
+        for (const s of analysis.missedOpportunities) {
+            lines.push(`- ${s}`);
+        }
+        lines.push("");
+    }
+
+    if (analysis.nextMeetingPlan) {
+        const plan = analysis.nextMeetingPlan;
+        lines.push("## 📋 Plano da próxima reunião");
+        lines.push("");
+        if (plan.goal) {
+            lines.push(`**Objetivo:** ${plan.goal}`);
+            lines.push("");
+        }
+        if (plan.strategy?.length) {
+            lines.push("**Estratégia:**");
+            for (const s of plan.strategy) {
+                lines.push(`- ${s}`);
+            }
+            lines.push("");
+        }
+        if (plan.questions?.length) {
+            lines.push("**Perguntas estratégicas:**");
+            for (let i = 0; i < plan.questions.length; i++) {
+                lines.push(`${i + 1}. ${plan.questions[i]}`);
+            }
+            lines.push("");
+        }
+        if (plan.closingStrategy?.length) {
+            lines.push("**Estratégia de fechamento:**");
+            for (const s of plan.closingStrategy) {
+                lines.push(`- 🎯 ${s}`);
+            }
+            lines.push("");
+        }
+    }
+
+    if (analysis.meta?.notes) {
+        lines.push("## 📝 Notas");
+        lines.push("");
+        lines.push(analysis.meta.notes);
+        lines.push("");
+    }
+
+    if (meeting.userFeedback) {
+        lines.push("## Feedback do Danilo");
+        lines.push("");
+        lines.push(`> ${meeting.userFeedback}`);
+        lines.push("");
+    }
+
+    lines.push("## Transcrição bruta");
+    lines.push("");
+    lines.push("```");
+    lines.push(meeting.rawTranscript);
+    lines.push("```");
+    lines.push("");
+
+    lines.push("---");
+    lines.push("");
+    lines.push(`*Exportado de [Mentor AI](${baseUrl}/meetings/${meeting.id}) em ${new Date().toISOString()}*`);
+
+    return lines.join("\n");
+}
+
+function buildPlainText(meeting: any, analysis: any): string {
     const clientName = meeting.client?.name || "Sem cliente";
     const date = new Date(meeting.createdAt).toLocaleDateString("pt-BR", {
         day: "2-digit", month: "long", year: "numeric"
     });
 
-    // Build plain-text sections for PDF
     const sections: string[] = [];
 
     sections.push("═".repeat(60));
@@ -40,7 +230,6 @@ export async function GET(
     sections.push(`Versão do Prompt: ${meeting.promptVersion || "N/A"}`);
     sections.push("");
 
-    // Scores
     sections.push("─".repeat(40));
     sections.push("SCORES");
     sections.push("─".repeat(40));
@@ -51,7 +240,6 @@ export async function GET(
     }
     sections.push("");
 
-    // Participants
     if (analysis.participants?.length) {
         sections.push("─".repeat(40));
         sections.push("PARTICIPANTES");
@@ -62,7 +250,6 @@ export async function GET(
         sections.push("");
     }
 
-    // DISC Profiles
     if (analysis.profiles?.length) {
         sections.push("─".repeat(40));
         sections.push("PERFIS DISC");
@@ -78,7 +265,6 @@ export async function GET(
         sections.push("");
     }
 
-    // Structured Conversation
     if (analysis.structuredConversation?.length) {
         sections.push("─".repeat(40));
         sections.push("CONVERSA ESTRUTURADA");
@@ -97,7 +283,6 @@ export async function GET(
         }
     }
 
-    // Strengths
     if (analysis.strengths?.length) {
         sections.push("─".repeat(40));
         sections.push("PONTOS FORTES");
@@ -108,7 +293,6 @@ export async function GET(
         sections.push("");
     }
 
-    // Improvements
     if (analysis.improvements?.length) {
         sections.push("─".repeat(40));
         sections.push("PONTOS DE MELHORIA");
@@ -119,7 +303,6 @@ export async function GET(
         sections.push("");
     }
 
-    // Missed Opportunities
     if (analysis.missedOpportunities?.length) {
         sections.push("─".repeat(40));
         sections.push("OPORTUNIDADES PERDIDAS");
@@ -130,7 +313,6 @@ export async function GET(
         sections.push("");
     }
 
-    // Next Meeting Plan
     if (analysis.nextMeetingPlan) {
         const plan = analysis.nextMeetingPlan;
         sections.push("─".repeat(40));
@@ -158,7 +340,6 @@ export async function GET(
         sections.push("");
     }
 
-    // Meta
     if (analysis.meta?.notes) {
         sections.push("─".repeat(40));
         sections.push("NOTAS");
@@ -172,9 +353,65 @@ export async function GET(
     sections.push(`${new Date().toLocaleString("pt-BR")}`);
     sections.push("═".repeat(60));
 
-    const content = sections.join("\n");
+    return sections.join("\n");
+}
 
-    // Return as downloadable text file (universal, no heavy deps)
+export async function GET(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const format = (searchParams.get("format") || "txt").toLowerCase();
+
+    const meeting = await prisma.meeting.findUnique({
+        where: { id },
+        include: { client: true },
+    });
+
+    if (!meeting) {
+        return NextResponse.json({ error: "Reunião não encontrada." }, { status: 404 });
+    }
+
+    if (!meeting.analysisJson) {
+        return NextResponse.json({ error: "Análise não disponível." }, { status: 400 });
+    }
+
+    // R-AZ2 — bloqueio de export markdown pra segmento Pharma
+    // Visitas médicas devem passar pelo processo de destilação manual
+    if (format === "md") {
+        const segment = meeting.segment || meeting.client?.segment;
+        if (segment && PHARMA_SEGMENTS.has(segment)) {
+            return NextResponse.json(
+                {
+                    error: "Export Markdown bloqueado para segmento Pharma.",
+                    reason: "R-AZ2 do vault Segundo Cérebro — dados de visita médica não devem ser exportados pro vault YumIA/Yumida.",
+                    alternativa: "Use o processo de destilação manual descrito em 13-playbooks/destilacao-licoes-venda.md"
+                },
+                { status: 403 }
+            );
+        }
+    }
+
+    const analysis = JSON.parse(meeting.analysisJson);
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://mentor-ai-topaz.vercel.app";
+
+    if (format === "md") {
+        const markdown = buildMarkdown(meeting, analysis, baseUrl);
+        const date = new Date(meeting.createdAt).toISOString().slice(0, 10);
+        const titleSlug = slugify(meeting.title);
+        const filename = `${date}-${titleSlug || id.slice(0, 8)}.md`;
+
+        return new Response(markdown, {
+            headers: {
+                "Content-Type": "text/markdown; charset=utf-8",
+                "Content-Disposition": `attachment; filename="${filename}"`,
+            },
+        });
+    }
+
+    // Default: TXT (comportamento original mantido pra clientes existentes)
+    const content = buildPlainText(meeting, analysis);
     const filename = `analise_${meeting.title.replace(/[^a-zA-Z0-9]/g, "_")}_${id.slice(0, 8)}.txt`;
 
     return new Response(content, {
