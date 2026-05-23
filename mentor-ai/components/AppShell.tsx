@@ -15,7 +15,7 @@ export function AppShell({ children }: AppShellProps) {
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
-    const desktopQuery = window.matchMedia("(min-width: 1024px) and (hover: hover) and (pointer: fine)");
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
     const syncViewport = (event?: MediaQueryListEvent) => {
       const matches = event?.matches ?? desktopQuery.matches;
       setIsDesktop(matches);
@@ -46,22 +46,22 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-dvh overflow-hidden">
-      {(isDesktop || isSidebarOpen) && (
-        <Sidebar
-          isDesktop={isDesktop}
-          isOpen={isDesktop ? true : isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-        />
-      )}
+      <Sidebar
+        isDesktop={isDesktop}
+        isOpen={isDesktop ? true : isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
 
-      {!isDesktop && isSidebarOpen && (
-        <button
-          type="button"
-          aria-label="Fechar menu"
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      <button
+        type="button"
+        aria-label="Fechar menu"
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] transition-all duration-300 ${
+          !isDesktop && isSidebarOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => setIsSidebarOpen(false)}
+      />
 
       <div
         className="relative flex min-h-dvh w-full flex-1 flex-col"

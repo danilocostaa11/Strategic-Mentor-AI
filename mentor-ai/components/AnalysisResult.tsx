@@ -147,11 +147,21 @@ function Section({ title, icon, children, defaultOpen = true }: {
                     <span className="text-xl">{icon}</span>
                     <h3 className="text-left text-base font-semibold text-white sm:text-lg">{title}</h3>
                 </div>
-                <span className={`text-white/40 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+                <span className={`text-white/40 transition-transform duration-300 ${open ? "rotate-180" : ""}`}>
                     ▼
                 </span>
             </button>
-            {open && <div className="border-t border-white/5 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">{children}</div>}
+            <div
+                className={`grid transition-all duration-300 ease-in-out ${
+                    open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                }`}
+            >
+                <div className="min-h-0 overflow-hidden">
+                    <div className="border-t border-white/5 px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
+                        {children}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

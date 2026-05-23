@@ -38,34 +38,59 @@
 }
 
 body {
-  background: radial-gradient(circle at top left, #1c1531, #09090b 40%);
-  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans);
   min-height: 100vh;
+  position: relative;
+  background-color: #09090b;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at top left, #1c1531, #09090b 45%);
+  z-index: -20;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 /* Glassmorphism utilities */
 .glass {
-  background: rgba(20, 20, 25, 0.4);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: rgba(20, 20, 25, 0.65);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--border);
 }
 
+/* Otimizado para rolagem fluida e 60/120 FPS cravados */
 .glass-card {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(145deg, rgba(20, 20, 25, 0.7) 0%, rgba(10, 10, 12, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+  /* O backdrop-filter: blur é removido aqui porque o card rola junto com a tela,
+     eliminando o lag pesado de repaints na GPU durante a rolagem */
 }
 
+/* Menus fixos e painéis suspensos onde elementos rolam por baixo se beneficiam do blur */
 .glass-panel {
-  background: rgba(0, 0, 0, 0.2);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  background: rgba(9, 9, 11, 0.85);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border-right: 1px solid var(--border);
+}
+
+/* Desativa blur no mobile de forma inteligente para performance absurda em smartphones */
+@media (max-width: 768px) {
+  .glass, .glass-panel {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: rgba(15, 15, 20, 0.95) !important;
+  }
 }
 
 .gradient-text {

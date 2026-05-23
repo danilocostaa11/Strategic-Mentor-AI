@@ -22,9 +22,9 @@ export function Sidebar({ isDesktop, isOpen, onClose }: SidebarProps) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 flex h-dvh flex-col glass-panel transition-transform duration-300 ${
-        isDesktop ? "w-64" : "w-[min(20rem,82vw)]"
-      } ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+      className={`fixed left-0 top-0 z-50 flex h-dvh flex-col glass-panel transition-all duration-300 ${
+        isDesktop ? "w-64 opacity-100 pointer-events-auto" : "w-[min(20rem,82vw)]"
+      } ${!isDesktop && (isOpen ? "translate-x-0 opacity-100 pointer-events-auto" : "-translate-x-full opacity-0 pointer-events-none")}`}
       aria-hidden={!isDesktop && !isOpen}
     >
       <div className="flex items-center justify-between gap-3 border-b border-white/5 px-6 py-6 lg:py-8">
