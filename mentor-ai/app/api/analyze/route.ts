@@ -91,6 +91,17 @@ export async function POST(req: Request) {
     });
 
     const errorCode = error?.code ?? getErrorCode(error);
+    const errorMessage = error?.message || String(error);
+
+    console.error("\n[analyze] CRITICAL ERROR:");
+    console.error("- Message:", errorMessage);
+    console.error("- Code:", errorCode);
+    console.error("- Status:", error?.status);
+    console.error("- Stack:", error?.stack);
+    if (error?.response?.data) {
+        console.error("- Response Data:", JSON.stringify(error.response.data, null, 2));
+    }
+    console.error("\n");
 
     const message =
       errorCode === "spending_cap_exceeded"
@@ -100,12 +111,6 @@ export async function POST(req: Request) {
           : error?.status === 429
             ? "Análise temporariamente indisponível (rate limit). Tente novamente em alguns segundos. Sua transcrição foi salva."
             : "Falha ao processar análise. Sua transcrição foi salva.";
-
-    console.error("[analyze] Error:", {
-      code: errorCode,
-      status: error?.status,
-      message: error?.message?.slice(0, 200),
-    });
 
     return NextResponse.json(
       { error: message, code: errorCode, meetingId: meeting.id },
