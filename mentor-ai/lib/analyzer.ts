@@ -24,6 +24,22 @@ function isRateLimitError(error: any): boolean {
   return error?.status === 429 || error?.code === "rate_limit_exceeded";
 }
 
+/**
+ * Detects the Google Gemini spending cap error (monthly limit exceeded).
+ * This is a 429 with RESOURCE_EXHAUSTED status — NOT a transient rate limit.
+ * Retrying won't help; user needs to increase the spending cap.
+ */
+function isSpendingCapError(error: any): boolean {
+  const message = (error?.message ?? error?.error?.message ?? "").toLowerCase();
+  const status = error?.error?.status ?? error?.status_text ?? "";
+  return (
+    (error?.status === 429 || error?.code === 429) &&
+    (message.includes("spending cap") ||
+     message.includes("spend cap") ||
+     status === "RESOURCE_EXHAUSTED")
+  );
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -33,6 +49,8 @@ function getErrorCode(error: any): string | null {
 }
 
 function shouldUseFallbackModel(error: any): boolean {
+  // Don't try fallback if spending cap exceeded — same project, same limit.
+  if (isSpendingCapError(error)) return false;
   const code = getErrorCode(error);
   return code === "insufficient_quota" || code === "model_not_found" || code === "invalid_model";
 }
@@ -111,6 +129,16 @@ export async function analyzeMeeting(args: {
   try {
     ({ analysis, modelUsed, usedFallback } = await callOpenAI(prompt));
   } catch (error: any) {
+    // Spending cap error — don't retry, propagate immediately with clear message.
+    if (isSpendingCapError(error)) {
+      const err = new Error(
+        "Limite de gasto mensal da API Gemini atingido. Acesse https://ai.studio/spend para ajustar seu limite."
+      );
+      (err as any).code = "spending_cap_exceeded";
+      (err as any).status = 429;
+      throw err;
+    }
+    // Transient rate limit — single retry after backoff.
     if (isRateLimitError(error)) {
       await sleep(2000);
       ({ analysis, modelUsed, usedFallback } = await callOpenAI(prompt));

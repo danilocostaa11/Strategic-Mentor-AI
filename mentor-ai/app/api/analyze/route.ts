@@ -90,18 +90,26 @@ export async function POST(req: Request) {
       data: { status: "ERROR" },
     });
 
-    const errorCode = getErrorCode(error);
+    const errorCode = error?.code ?? getErrorCode(error);
 
     const message =
-      errorCode === "insufficient_quota"
-        ? "Não foi possível concluir a análise porque a cota da OpenAI foi esgotada. Sua transcrição foi salva."
-        : error?.status === 429
-          ? "Análise temporariamente indisponível. Sua transcrição foi salva."
-          : "Falha ao processar análise. Sua transcrição foi salva.";
+      errorCode === "spending_cap_exceeded"
+        ? "Limite de gasto mensal da API Gemini atingido. Acesse ai.studio/spend para ajustar. Sua transcrição foi salva."
+        : errorCode === "insufficient_quota"
+          ? "Não foi possível concluir a análise porque a cota da API foi esgotada. Sua transcrição foi salva."
+          : error?.status === 429
+            ? "Análise temporariamente indisponível (rate limit). Tente novamente em alguns segundos. Sua transcrição foi salva."
+            : "Falha ao processar análise. Sua transcrição foi salva.";
+
+    console.error("[analyze] Error:", {
+      code: errorCode,
+      status: error?.status,
+      message: error?.message?.slice(0, 200),
+    });
 
     return NextResponse.json(
       { error: message, code: errorCode, meetingId: meeting.id },
-      { status: 500 }
+      { status: error?.status === 429 ? 429 : 500 }
     );
   }
 }
