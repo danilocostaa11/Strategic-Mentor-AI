@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_6EowAqt7hZQKQByYGIObjeZTXtjI",
+  "orgId": "team_Qq5cujjqmbXtE0KVsqClbqAb",
+  "projectName": "mentor-ai",
+  "settings": {
+    "createdAt": 1773176328960,
+    "framework": "nextjs",
+    "devCommand": "npm run dev",
+    "installCommand": "npm install",
+    "buildCommand": "prisma generate && npm run build",
+    "outputDirectory": ".next",
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

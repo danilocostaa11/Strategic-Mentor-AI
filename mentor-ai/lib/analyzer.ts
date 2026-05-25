@@ -6,17 +6,31 @@ import { getCacheKey, getCached, setCache } from "./cache";
 const PRIMARY_MODEL = process.env.AI_MODEL_PRIMARY?.trim() || "gemini-2.5-pro";
 const FALLBACK_MODEL = process.env.AI_MODEL_FALLBACK?.trim() || "gemini-2.5-flash";
 
+console.log(`[analyzer:models] Primary=${PRIMARY_MODEL}, Fallback=${FALLBACK_MODEL}`);
+
 function safeJsonParse(text: string) {
+  console.log(`[analyzer:safeJsonParse] Input text length=${text.length}, firstChars=${text.substring(0, 100).replace(/\n/g, "\\n")}`);
   try {
-    return JSON.parse(text);
+    const result = JSON.parse(text);
+    console.log(`[analyzer:safeJsonParse] Parsed successfully`);
+    return result;
   } catch {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start >= 0 && end > start) {
       const slice = text.slice(start, end + 1);
-      return JSON.parse(slice);
+      console.log(`[analyzer:safeJsonParse] Trying to extract JSON from index ${start} to ${end}, slice length=${slice.length}`);
+      try {
+        const result = JSON.parse(slice);
+        console.log(`[analyzer:safeJsonParse] Extracted JSON successfully`);
+        return result;
+      } catch (extractErr: any) {
+        console.error(`[analyzer:safeJsonParse] Extraction failed: ${extractErr.message}`);
+        throw new Error(`Resposta não é JSON válido. Extract attempt failed: ${extractErr.message}`);
+      }
     }
-    throw new Error("Resposta não é JSON válido.");
+    console.error(`[analyzer:safeJsonParse] No JSON object found in text`);
+    throw new Error(`Resposta não é JSON válido. No JSON object found in ${text.length} chars.`);
   }
 }
 
@@ -61,6 +75,7 @@ async function createChatCompletion(args: {
   maxTokens: number;
 }): Promise<{ text: string; modelUsed: string; usedFallback: boolean }> {
   const call = async (model: string) => {
+    console.log(`[analyzer:createChatCompletion] Calling model=${model}, maxTokens=${args.maxTokens}`);
     const resp = await openai.chat.completions.create({
       model,
       temperature: 0.1,
@@ -71,16 +86,23 @@ async function createChatCompletion(args: {
       ],
     });
 
-    return resp.choices[0]?.message?.content ?? "";
+    const text = resp.choices[0]?.message?.content ?? "";
+    console.log(`[analyzer:createChatCompletion] Response received, text length=${text.length}, finish_reason=${resp.choices[0]?.finish_reason}`);
+    if (!text || text.trim().length === 0) {
+      throw new Error(`Resposta vazia do modelo ${model}. finish_reason=${resp.choices[0]?.finish_reason}`);
+    }
+    return text;
   };
 
   try {
     const text = await call(PRIMARY_MODEL);
     return { text, modelUsed: PRIMARY_MODEL, usedFallback: false };
   } catch (error: any) {
+    console.error(`[analyzer:createChatCompletion] Primary model ${PRIMARY_MODEL} failed:`, error.message || error);
     if (!shouldUseFallbackModel(error) || !FALLBACK_MODEL || FALLBACK_MODEL === PRIMARY_MODEL) {
       throw error;
     }
+    console.log(`[analyzer:createChatCompletion] Trying fallback model ${FALLBACK_MODEL}...`);
     const text = await call(FALLBACK_MODEL);
     return { text, modelUsed: FALLBACK_MODEL, usedFallback: true };
   }
@@ -100,6 +122,8 @@ export async function analyzeMeeting(args: {
   segment?: string | null;
   clientContext?: string | null;
 }): Promise<AnalyzeResult> {
+  console.log(`[analyzer:analyzeMeeting] Starting analysis, transcript length=${args.transcript.length}, segment=${args.segment || "null"}`);
+
   const context = buildContext(args.segment);
 
   const prompt = buildIndividualPrompt({
@@ -109,11 +133,14 @@ export async function analyzeMeeting(args: {
     clientContext: args.clientContext,
   });
 
+  console.log(`[analyzer:analyzeMeeting] Prompt built, length=${prompt.length}`);
+
   const promptHash = getPromptHash(prompt);
   const cacheKey = getCacheKey(args.transcript, args.segment ?? "default", PROMPT_VERSION);
 
   const cached = getCached(cacheKey);
   if (cached) {
+    console.log(`[analyzer:analyzeMeeting] Cache hit for key=${cacheKey.substring(0, 20)}...`);
     return {
       analysis: cached,
       promptVersion: PROMPT_VERSION,
@@ -129,6 +156,7 @@ export async function analyzeMeeting(args: {
   try {
     ({ analysis, modelUsed, usedFallback } = await callOpenAI(prompt));
   } catch (error: any) {
+    console.error(`[analyzer:analyzeMeeting] callOpenAI failed: ${error.message || error}`);
     // Spending cap error — don't retry, propagate immediately with clear message.
     if (isSpendingCapError(error)) {
       const err = new Error(
@@ -140,6 +168,7 @@ export async function analyzeMeeting(args: {
     }
     // Transient rate limit — single retry after backoff.
     if (isRateLimitError(error)) {
+      console.log(`[analyzer:analyzeMeeting] Rate limit detected, retrying after 2s...`);
       await sleep(2000);
       ({ analysis, modelUsed, usedFallback } = await callOpenAI(prompt));
     } else {
@@ -148,6 +177,8 @@ export async function analyzeMeeting(args: {
   }
 
   setCache(cacheKey, analysis);
+
+  console.log(`[analyzer:analyzeMeeting] Analysis complete, modelUsed=${modelUsed}, usedFallback=${usedFallback}`);
 
   return {
     analysis,
@@ -160,6 +191,7 @@ export async function analyzeMeeting(args: {
 }
 
 async function callOpenAI(prompt: string): Promise<{ analysis: any; modelUsed: string; usedFallback: boolean }> {
+  console.log(`[analyzer:callOpenAI] Starting OpenAI call, prompt length=${prompt.length}`);
   const { text, modelUsed, usedFallback } = await createChatCompletion({
     system: `Você é um analista preciso de reuniões comerciais. Responda SOMENTE em JSON válido.
 
@@ -172,6 +204,7 @@ REGRAS INVIOLÁVEIS:
     prompt,
     maxTokens: 4000,
   });
+  console.log(`[analyzer:callOpenAI] Parsing response text (length=${text.length})...`);
   return { analysis: safeJsonParse(text), modelUsed, usedFallback };
 }
 

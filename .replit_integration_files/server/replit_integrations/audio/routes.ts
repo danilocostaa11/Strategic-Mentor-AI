@@ -64,17 +64,23 @@ export function registerAudioRoutes(app: Express): void {
     try {
       const conversationId = parseInt(req.params.id);
       const { audio, voice = "alloy" } = req.body;
+      console.log(`[audio:route] Received audio for conversation ${conversationId}, voice=${voice}`);
 
       if (!audio) {
+        console.error(`[audio:route] Missing audio data`);
         return res.status(400).json({ error: "Audio data (base64) is required" });
       }
 
       // 1. Auto-detect format and convert to OpenAI-compatible format
       const rawBuffer = Buffer.from(audio, "base64");
+      console.log(`[audio:route] Raw audio buffer: ${rawBuffer.length} bytes`);
       const { buffer: audioBuffer, format: inputFormat } = await ensureCompatibleFormat(rawBuffer);
+      console.log(`[audio:route] Detected/converted format: ${inputFormat}, final size: ${audioBuffer.length} bytes`);
 
       // 2. Transcribe user audio
+      console.log(`[audio:route] Starting transcription...`);
       const userTranscript = await speechToText(audioBuffer, inputFormat);
+      console.log(`[audio:route] Transcription complete: "${userTranscript}"`);
 
       // 3. Save user message
       await chatStorage.createMessage(conversationId, "user", userTranscript);
@@ -124,13 +130,20 @@ export function registerAudioRoutes(app: Express): void {
       res.write(`data: ${JSON.stringify({ type: "done", transcript: assistantTranscript })}\n\n`);
       res.end();
     } catch (error) {
-      console.error("Error processing voice message:", error);
+      console.error("[audio:route] Error processing voice message:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : "";
+      console.error(`[audio:route] Error details: ${errorMessage}`);
+      if (errorStack) console.error(`[audio:route] Stack trace: ${errorStack}`);
       if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ type: "error", error: "Failed to process voice message" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: "error", error: errorMessage })}
+
+`);
         res.end();
       } else {
-        res.status(500).json({ error: "Failed to process voice message" });
+        res.status(500).json({ error: errorMessage });
       }
+    }
     }
   });
 }

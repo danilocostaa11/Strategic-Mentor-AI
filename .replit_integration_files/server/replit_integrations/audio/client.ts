@@ -58,6 +58,7 @@ export async function convertToWav(audioBuffer: Buffer): Promise<Buffer> {
   try {
     // Write input to temp file (required for video containers that need seeking)
     await writeFile(inputPath, audioBuffer);
+    console.log(`[audio:convertToWav] Wrote ${audioBuffer.length} bytes to ${inputPath}`);
 
     // Run ffmpeg with file paths
     await new Promise<void>((resolve, reject) => {
@@ -72,16 +73,22 @@ export async function convertToWav(audioBuffer: Buffer): Promise<Buffer> {
         outputPath,
       ]);
 
-      ffmpeg.stderr.on("data", () => {}); // Suppress logs
+      let stderr = "";
+      ffmpeg.stderr.on("data", (data) => { stderr += data; });
       ffmpeg.on("close", (code) => {
         if (code === 0) resolve();
-        else reject(new Error(`ffmpeg exited with code ${code}`));
+        else reject(new Error(`ffmpeg exited with code ${code}: ${stderr}`));
       });
-      ffmpeg.on("error", reject);
+      ffmpeg.on("error", (err) => {
+        console.error(`[audio:convertToWav] ffmpeg spawn error:`, err.message);
+        reject(new Error(`ffmpeg failed to start: ${err.message}`));
+      });
     });
 
     // Read converted audio
-    return await readFile(outputPath);
+    const result = await readFile(outputPath);
+    console.log(`[audio:convertToWav] Converted to ${result.length} bytes WAV at ${outputPath}`);
+    return result;
   } finally {
     // Clean up temp files
     await unlink(inputPath).catch(() => {});
@@ -98,10 +105,13 @@ export async function ensureCompatibleFormat(
   audioBuffer: Buffer
 ): Promise<{ buffer: Buffer; format: "wav" | "mp3" }> {
   const detected = detectAudioFormat(audioBuffer);
+  console.log(`[audio:ensureCompatibleFormat] Detected format: ${detected}`);
   if (detected === "wav") return { buffer: audioBuffer, format: "wav" };
   if (detected === "mp3") return { buffer: audioBuffer, format: "mp3" };
   // Convert WebM, MP4, OGG, or unknown to WAV
+  console.log(`[audio:ensureCompatibleFormat] Converting ${detected} to WAV via ffmpeg...`);
   const wavBuffer = await convertToWav(audioBuffer);
+  console.log(`[audio:ensureCompatibleFormat] Conversion complete: ${wavBuffer.length} bytes`);
   return { buffer: wavBuffer, format: "wav" };
 }
 
@@ -241,11 +251,14 @@ export async function speechToText(
   audioBuffer: Buffer,
   format: "wav" | "mp3" | "webm" = "wav"
 ): Promise<string> {
+  console.log(`[audio:speechToText] Format=${format}, Size=${audioBuffer.length} bytes`);
   const file = await toFile(audioBuffer, `audio.${format}`);
+  console.log(`[audio:speechToText] Calling OpenAI transcription with model gpt-4o-mini-transcribe`);
   const response = await openai.audio.transcriptions.create({
     file,
     model: "gpt-4o-mini-transcribe",
   });
+  console.log(`[audio:speechToText] Transcription result: "${response.text.substring(0, 100)}..."`);
   return response.text;
 }
 
