@@ -66,7 +66,13 @@ function shouldUseFallbackModel(error: any): boolean {
   // Don't try fallback if spending cap exceeded — same project, same limit.
   if (isSpendingCapError(error)) return false;
   const code = getErrorCode(error);
-  return code === "insufficient_quota" || code === "model_not_found" || code === "invalid_model";
+  return (
+    code === "insufficient_quota" ||
+    code === "model_not_found" ||
+    code === "invalid_model" ||
+    code === "empty_response_token_budget" ||
+    code === "empty_response"
+  );
 }
 
 async function createChatCompletion(args: {
@@ -87,9 +93,15 @@ async function createChatCompletion(args: {
     });
 
     const text = resp.choices[0]?.message?.content ?? "";
-    console.log(`[analyzer:createChatCompletion] Response received, text length=${text.length}, finish_reason=${resp.choices[0]?.finish_reason}`);
+    const finishReason = resp.choices[0]?.finish_reason;
+    console.log(`[analyzer:createChatCompletion] Response received, text length=${text.length}, finish_reason=${finishReason}`);
     if (!text || text.trim().length === 0) {
-      throw new Error(`Resposta vazia do modelo ${model}. finish_reason=${resp.choices[0]?.finish_reason}`);
+      // Gemini 2.5 Pro consome tokens em "thinking" interno antes da saída.
+      // Quando finish_reason=length com texto vazio, todo o orçamento foi gasto pensando.
+      // Marcamos com code=empty_response_token_budget pro fallback pegar.
+      const err: any = new Error(`Resposta vazia do modelo ${model}. finish_reason=${finishReason}`);
+      err.code = finishReason === "length" ? "empty_response_token_budget" : "empty_response";
+      throw err;
     }
     return text;
   };
@@ -202,7 +214,7 @@ REGRAS INVIOLÁVEIS:
 - Pontos fortes, melhorias e oportunidades devem ser ESPECÍFICOS e rastreáveis à transcrição.
 - Scores devem refletir EVIDÊNCIAS REAIS. Sem evidência = score baixo.`,
     prompt,
-    maxTokens: 4000,
+    maxTokens: 16000,
   });
   console.log(`[analyzer:callOpenAI] Parsing response text (length=${text.length})...`);
   return { analysis: safeJsonParse(text), modelUsed, usedFallback };
@@ -224,7 +236,7 @@ export async function analyzePatterns(args: {
     const { text } = await createChatCompletion({
       system: "Você é um analista de padrões de performance comercial. Responda SOMENTE em JSON válido.",
       prompt,
-      maxTokens: 4000,
+      maxTokens: 16000,
     });
     return JSON.parse(text || "{}");
   } catch (error: any) {
