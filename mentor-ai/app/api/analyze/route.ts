@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { analyzeMeeting } from "@/lib/analyzer";
+import { publishToVault } from "@/lib/github-vault";
 
 function getErrorCode(error: any): string | null {
   return error?.code ?? error?.error?.code ?? error?.type ?? error?.error?.type ?? null;
@@ -73,7 +74,17 @@ export async function POST(req: Request) {
         listeningScore: Number.isFinite(listeningScore) ? listeningScore : null,
         status: "DONE",
       },
+      include: { client: true },
     });
+
+    // Auto-publish ao vault Obsidian (opt-in via VAULT_AUTOPUBLISH=true).
+    // Fire-and-forget: erro de publicação não falha a request — análise já está salva no DB.
+    const publishResult = await publishToVault(updated, result.analysis);
+    if (publishResult.published) {
+      console.log(`[analyze] vault publish OK: ${publishResult.path} → ${publishResult.url}`);
+    } else if (publishResult.reason !== "disabled") {
+      console.warn(`[analyze] vault publish skipped/failed: ${publishResult.reason} ${publishResult.detail ?? ""}`);
+    }
 
     return NextResponse.json({
       meetingId: updated.id,
@@ -83,6 +94,7 @@ export async function POST(req: Request) {
       fromCache: result.fromCache,
       modelUsed: result.modelUsed,
       usedFallback: result.usedFallback ?? false,
+      vaultPublish: publishResult,
     });
   } catch (error: any) {
     await prisma.meeting.update({
