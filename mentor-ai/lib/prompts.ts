@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 
-export const PROMPT_VERSION = "v1.3-2026-05";
+export const PROMPT_VERSION = "v1.4-2026-05";
 
 let _promptHashCache: string | null = null;
 
@@ -15,7 +15,7 @@ export function getBasePromptHash(): string {
   return _promptHashCache;
 }
 
-const INDIVIDUAL_TEMPLATE_SIGNATURE = "strategic-mentor-individual-v1.3";
+const INDIVIDUAL_TEMPLATE_SIGNATURE = "strategic-mentor-individual-v1.4";
 
 const SCORING_RUBRIC = `
 === RUBRICA DE SCORES (use como referência obrigatória) ===
@@ -60,22 +60,102 @@ ATENÇÃO: Estas regras são INVIOLÁVEIS. Quebrá-las invalida toda a análise.
 10) O campo "meta.notes" deve listar QUALQUER limitação encontrada (ex: "transcrição curta", "falas misturadas sem identificação clara").
 `;
 
-// v1.3 — Rules for handling multiple consultants on the same call
-// (common in real estate deals: intermediário Yumida + representante incorporadora)
+// v1.4 — Identify meeting structure BEFORE attributing roles
+// Without this, the model conflates buyer-side and broker-side as "team consultant"
+const MEETING_STRUCTURE_RULES = `
+=== ESTRUTURA DA REUNIÃO (PASSO 1 — FAZER ANTES DE QUALQUER ANÁLISE) ===
+
+Antes de atribuir CONSULTOR/CLIENTE, classifique a ESTRUTURA da reunião.
+Use exatamente UMA destas categorias em "meetingStructure":
+
+- "venda_direta"            — 1 vendedor × 1+ comprador (B2C simples)
+- "equipe_vendedora"        — 2+ pessoas do MESMO time vendendo
+- "intermediacao_b2b"       — broker/corretor faz ponte entre 2 partes
+- "tripartite_imobiliario"  — incorporadora (compra) + broker (intermedia) + proprietários (vendem)
+- "consultoria"             — consultor vende serviço pro cliente
+- "indefinido"              — sem evidência suficiente
+
+REGRA CRÍTICA pra "intermediacao_b2b" e "tripartite_imobiliario":
+O broker NÃO está no mesmo "lado" da empresa que ele representa. Broker tem
+interesse próprio (comissão + relacionamento contínuo com AMBAS as partes).
+Tratar como LADO SEPARADO. Exemplos de pista:
+- "vou apresentar a [empresa X] pra vocês" → broker apresentando comprador
+- "o [empresa X] tem interesse em..." → broker falando do comprador em 3ª pessoa
+- "como vocês estão estruturando isso?" → broker perguntando à empresa
+
+Os scores avaliam o USUÁRIO DO APP (CONSULTOR_PRINCIPAL). Identifique pelo
+"Cliente cadastrado" em CONTEXTO DO CLIENTE. Se ele estiver listado como
+representando a parte X, então X é o lado do CONSULTOR_PRINCIPAL.
+`;
+
+// v1.4 — Force name-to-side mapping BEFORE generating analysis
+// This prevents inventing fake attributions like "Danilo da MAC" when Danilo is the broker
+const NAME_MAPPING_RULES = `
+=== MAPEAMENTO DE NOMES → LADOS (PASSO 2 — OBRIGATÓRIO) ===
+
+Após classificar a ESTRUTURA, liste TODOS os nomes próprios mencionados na
+transcrição em "nameMap". Para cada nome, atribua:
+
+- name:     forma canônica (corrigida via ASR_NORMALIZATION_RULES abaixo)
+- side:     "comprador" | "vendedor" | "intermediario" | "cliente" | "consultor" | "terceiro_ausente" | "indefinido"
+- team:     organização ou grupo (ex: "Yumida", "MAC", "Proprietários Aprígio 378") — null se desconhecido
+- evidence: trecho LITERAL da transcrição que sustenta a atribuição
+
+REGRAS DE ATRIBUIÇÃO:
+1) Se o nome aparece em CONTEXTO DO CLIENTE como "Nome: X", então X é o cliente
+   principal cadastrado — atribua side="cliente" + team= (Empresa: do contexto).
+2) NUNCA invente uma combinação nome+empresa que não tenha evidência direta
+   na transcrição OU no CONTEXTO DO CLIENTE.
+3) Se um mesmo nome aparece com 2+ atribuições possíveis, escolha a mais provável
+   E adicione nota em meta.notes explicando a ambiguidade.
+4) Se a transcrição menciona "Danilo" e o contexto diz "Cliente: Rafael", NÃO
+   assuma que Danilo é o consultor — pode ser broker ou terceiro. Use evidência.
+5) Pessoas citadas mas não presentes (família, sócios ausentes) vão como
+   side="terceiro_ausente".
+
+ESTE PASSO É OBRIGATÓRIO. Sem nameMap, a análise é REJEITADA como inválida.
+`;
+
+// v1.4 — Normalize ASR errors (typos in proper names)
+const ASR_NORMALIZATION_RULES = `
+=== NORMALIZAÇÃO DE TRANSCRIÇÃO (ASR) ===
+
+A transcrição vem de áudio com erros de ASR (Automatic Speech Recognition).
+Antes de gerar análise, IDENTIFIQUE variações suspeitas de nomes próprios:
+
+1) Nomes que aparecem em 2+ formas similares ("Ricardo" / "Riardo" / "Ricado") —
+   trate como o MESMO nome. Use a forma mais provável (mais frequente OU mais
+   próxima de nome português comum OU presente no CONTEXTO DO CLIENTE).
+2) Liste TODAS as variações detectadas em "asrCorrections", com a forma canônica
+   escolhida e as variantes ignoradas.
+3) Se houver "Nome: X" em CONTEXTO DO CLIENTE, use X como fonte de verdade —
+   qualquer variação similar na transcrição converge pra X.
+4) Aplique a forma canônica em TODOS os outros campos (nameMap, participants,
+   keyQuotes, evidence, contextualFacts, openCommitments).
+
+NÃO INVENTE nomes que não estão na transcrição. Só normalize variantes.
+`;
+
+// v1.4 — Multi-consultant rules — refined to coexist with meeting structure
 const MULTI_CONSULTANT_RULES = `
 === REGRAS DE MÚLTIPLOS CONSULTORES (CRÍTICO) ===
 
-Em deals B2B complexos (imobiliário, consultoria, alto ticket), MAIS DE UMA pessoa pode
-estar do "lado da venda" — ex: corretor intermediário + representante da construtora.
-NÃO os trate como um único "CONSULTOR" — isso falsifica scores.
+Em deals B2B complexos, MAIS DE UMA pessoa pode estar do lado vendedor — ex:
+SDR + closer, ou 2 consultores especialistas. NÃO os trate como um único
+"CONSULTOR" — isso falsifica scores.
+
+ATENÇÃO: Esta regra só se aplica quando meetingStructure = "equipe_vendedora"
+OU "consultoria" com equipe. Em "intermediacao_b2b" / "tripartite_imobiliario",
+o broker e a empresa representada NÃO são "equipe" — são lados distintos
+(ver MEETING_STRUCTURE_RULES).
 
 Regras:
-1) Se identificar 2+ pessoas do lado vendedor, use labels distintos:
-   - CONSULTOR_PRINCIPAL (quem é o usuário do app — geralmente identificável pelo "Cliente cadastrado")
-   - CONSULTOR_PARCEIRO (o outro, ex: representante da construtora)
-   - Ou nomes específicos quando claros na transcrição
-2) Em cada participant, inclua o campo "team" com a organização quando rastreável
-   (ex: "Yumida", "MAC", "Construtora X", "Empresa Y"). Use null se desconhecido.
+1) Se identificar 2+ pessoas do MESMO lado, use labels distintos:
+   - CONSULTOR_PRINCIPAL (quem é o usuário do app — identificável pelo
+     CONTEXTO DO CLIENTE)
+   - CONSULTOR_PARCEIRO (o outro do mesmo time)
+   - Ou nomes específicos quando claros (use forma canônica do nameMap)
+2) Em cada participant, o "team" DEVE bater com o "team" atribuído em nameMap.
 3) Em "strengths", "improvements" e "missedOpportunities", SEMPRE atribua ações
    a um consultor específico ("CONSULTOR_PRINCIPAL fez X" / "CONSULTOR_PARCEIRO disse Y").
 4) Os SCORES principais avaliam o CONSULTOR_PRINCIPAL (o usuário do app).
@@ -214,6 +294,12 @@ Sua tarefa é analisar transcrições REAIS de reuniões comerciais.
 
 ${ANTI_HALLUCINATION_RULES}
 
+${MEETING_STRUCTURE_RULES}
+
+${ASR_NORMALIZATION_RULES}
+
+${NAME_MAPPING_RULES}
+
 ${MULTI_CONSULTANT_RULES}
 
 ${TACTICAL_QUESTIONS_RULES}
@@ -241,11 +327,18 @@ Analise a transcrição bruta abaixo. Ela pode estar desorganizada, informal, co
 IMPORTANTE: Sua análise deve ser um ESPELHO FIEL do que aconteceu na reunião, não um relatório genérico.
 
 Regras de análise:
+0) **NOVO em v1.4 — PASSO 0:** classifique meetingStructure (ver MEETING_STRUCTURE_RULES).
+   **PASSO 1:** normalize nomes via ASR (ver ASR_NORMALIZATION_RULES) e preencha asrCorrections.
+   **PASSO 2:** preencha nameMap atribuindo cada nome a um lado (ver NAME_MAPPING_RULES).
+   Estes 3 passos vêm ANTES de tudo. Se pular, a análise é inválida.
+
 1) Identifique participantes e separe falas (ver REGRAS DE MÚLTIPLOS CONSULTORES acima):
-   - CONSULTOR_PRINCIPAL ou CONSULTOR (quem é o usuário do app)
-   - CONSULTOR_PARCEIRO (se houver outra pessoa do lado vendedor)
+   - CONSULTOR_PRINCIPAL ou CONSULTOR (quem é o usuário do app — confirmado via nameMap)
+   - CONSULTOR_PARCEIRO (se houver outra pessoa do MESMO lado — não confundir com broker/contraparte)
    - CLIENTE_1, CLIENTE_2, CLIENTE_3 (quem está recebendo/comprando)
-   - Inclua "team" quando rastreável
+   - Em meetingStructure="intermediacao_b2b"/"tripartite_imobiliario": use também labels
+     BROKER ou EMPRESA_REPRESENTADA quando aplicável
+   - Inclua "team" quando rastreável (deve bater com o team do nameMap)
    - Para cada CLIENTE_n, inferir papel: decisor / influenciador / técnico / observador
 
 2) Reorganize a conversa nos blocos abaixo. SOMENTE inclua blocos que REALMENTE existem na transcrição:
@@ -292,9 +385,22 @@ Regras de análise:
 === FORMATO DE SAÍDA (OBRIGATÓRIO — JSON válido) ===
 
 {
+  "meetingStructure": "venda_direta|equipe_vendedora|intermediacao_b2b|tripartite_imobiliario|consultoria|indefinido",
+  "asrCorrections": [
+    { "canonical": "Ricardo", "variants": ["Riardo", "Ricado"] }
+  ],
+  "nameMap": [
+    {
+      "name": "Danilo",
+      "side": "intermediario|comprador|vendedor|cliente|consultor|terceiro_ausente|indefinido",
+      "team": "Yumida",
+      "evidence": "trecho LITERAL da transcrição ou referência ao CONTEXTO DO CLIENTE"
+    }
+  ],
   "participants": [
-    { "label": "CONSULTOR_PRINCIPAL", "role": "consultor", "team": "Yumida" },
-    { "label": "CONSULTOR_PARCEIRO", "role": "consultor", "team": "MAC" },
+    { "label": "CONSULTOR_PRINCIPAL", "role": "consultor|broker", "team": "Yumida" },
+    { "label": "CONSULTOR_PARCEIRO", "role": "consultor", "team": "Yumida" },
+    { "label": "EMPRESA_REPRESENTADA_1", "role": "comprador|vendedor", "team": "MAC" },
     { "label": "CLIENTE_1", "role": "decisor|influenciador|tecnico|observador|indefinido", "team": null }
   ],
   "structuredConversation": [
@@ -387,6 +493,11 @@ Entrada: uma lista de análises anteriores (JSON). Não invente nada além do qu
 NOVO em v1.3: as análises podem ter os campos clientPositioning, contextualFacts, crossSellSignals,
 openCommitments. Use-os para identificar padrões recorrentes (ex: posicionamento típico de cliente
 do segmento, tipos de cross-sell que aparecem, compromissos que ficam abertos).
+
+NOVO em v1.4: as análises agora têm meetingStructure, nameMap, asrCorrections. Use meetingStructure
+pra identificar se o usuário trabalha mais como broker (intermediacao_b2b/tripartite) ou vendedor
+direto — isso muda os micro-hábitos a sugerir. Use nameMap pra rastrear consistência de atribuição
+ao longo do tempo (se o mesmo nome aparece em lados diferentes em análises distintas, flag de erro).
 
 === SAÍDA (SOMENTE JSON) ===
 {
