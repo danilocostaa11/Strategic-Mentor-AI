@@ -39,7 +39,7 @@ export function mapSegmentToArea(segment?: string | null): string {
   const s = segment.toLowerCase();
   const sn = normalizeSegment(segment);
   if (YUMIA_EXACT_ALIASES.has(sn)) return "yumia";
-  if (s.includes("imobil") || s.includes("yumida") || s.includes("incorporadora") || s.includes("investidor")) return "yumida";
+  if (s.includes("imob") || s.includes("yumida") || s.includes("incorporadora") || s.includes("investidor")) return "yumida";
   if (s.includes("clinic") || s.includes("medic") || s.includes("advoc") || s.includes("yumia") || s.includes("pme")) return "yumia";
   return "pessoal";
 }
