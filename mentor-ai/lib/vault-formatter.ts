@@ -22,9 +22,23 @@ export function slugify(s: string): string {
     .slice(0, 60);
 }
 
+// Aliases curtos que dariam falso positivo com `includes()` (ex: "ia" em "social media").
+// Match exato pós-normalize, sem acento.
+const YUMIA_EXACT_ALIASES = new Set([
+  "ia",
+  "inteligencia artificial",
+  "ai",
+]);
+
+function normalizeSegment(s: string): string {
+  return s.toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 export function mapSegmentToArea(segment?: string | null): string {
   if (!segment) return "pessoal";
   const s = segment.toLowerCase();
+  const sn = normalizeSegment(segment);
+  if (YUMIA_EXACT_ALIASES.has(sn)) return "yumia";
   if (s.includes("imobil") || s.includes("yumida") || s.includes("incorporadora") || s.includes("investidor")) return "yumida";
   if (s.includes("clinic") || s.includes("medic") || s.includes("advoc") || s.includes("yumia") || s.includes("pme")) return "yumia";
   return "pessoal";
